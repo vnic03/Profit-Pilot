@@ -1,0 +1,19 @@
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #333;
+  color: white;
+  padding: 1rem;
+}
+
+.nav-links a, .search-bar {
+  color: white;
+  text-decoration: none;
+  margin: 0 0.5rem;
+}
+
+.search-bar input, .search-bar button {
+  margin: 0 0.5rem;
+}
