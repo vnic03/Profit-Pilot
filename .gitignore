@@ -6,6 +6,7 @@ build/
 !**/src/test/**/build/
 .env
 .financialdata.arff
+financialdata.arff
 /src/main/resources/application.properties
 
 ### STS ###
