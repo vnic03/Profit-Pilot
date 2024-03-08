@@ -1,7 +1,7 @@
 
 const descriptions = {
     close: [
-        "The last price at which a security is traded on a given trading day. ",
+        "The last price at which a security is traded on a given trading day.",
         "The closing price is considered the most accurate valuation of a security until trading resumes on the next trading day."
     ],
     high: [
