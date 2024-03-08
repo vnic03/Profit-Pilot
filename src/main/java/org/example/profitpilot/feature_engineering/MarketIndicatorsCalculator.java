@@ -1,9 +1,88 @@
 package org.example.profitpilot.feature_engineering;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class MarketIndicatorsCalculator {
+
+    public static Map<String, Double> SMA(Map<String, Double> pricesAndDates, int period) {
+        Map<String, Double> sma = new LinkedHashMap<>();
+        List<String> dates = new ArrayList<>(pricesAndDates.keySet());
+        List<Double> prices = new ArrayList<>(pricesAndDates.values());
+
+        if (prices.size() < period) {
+            return sma;
+        }
+
+        for (int i = period - 1; i < dates.size(); i++) {
+            double sum = 0.0;
+
+            for (int j = i - period + 1; j <= i; j++) {
+                sum += prices.get(j);
+            }
+            double average = sum / period;
+
+            sma.put(dates.get(i), average);
+        }
+        return sma;
+    }
+
+    public static Map<String, Double> RSI(Map<String, Double> pricesAndDates, int period) {
+        Map<String, Double> rsi = new LinkedHashMap<>();
+        List<String> dates = new ArrayList<>(pricesAndDates.keySet());
+        List<Double> prices = new ArrayList<>(pricesAndDates.values());
+
+        if (prices.size() < period) {
+            return rsi;
+        }
+
+        double averageGain = 0; double averageLoss = 0;
+
+        for (int i = 1; i <= period; i++) {
+            double difference = prices.get(i) - prices.get(i - 1);
+            if (difference > 0) averageGain += difference / period;
+            else averageLoss -= difference / period;
+        }
+
+        double rs = averageGain / Math.max(averageLoss, 1);
+
+        rsi.put(dates.get(period), 100 - (100 / (1 + rs)));
+
+        for (int i = period + 1; i < dates.size(); i++) {
+            double difference = prices.get(i) - prices.get(i - 1);
+            if (difference > 0) {
+                averageGain = (averageGain * (period - 1) + difference) / period;
+                averageLoss = (averageLoss * (period - 1)) / period;
+            } else {
+                averageGain = (averageGain * (period - 1)) / period;
+                averageLoss = (averageLoss * (period - 1) - difference) / period;
+            }
+
+            rs = averageGain / Math.max(averageLoss, 1);
+
+            rsi.put(dates.get(i), 100 - (100 / (1 + rs)));
+        }
+        return rsi;
+    }
+
+    public static Map<String, Double> EMA(Map<String, Double> pricesAndDates, int period) {
+        Map<String, Double> ema = new LinkedHashMap<>();
+        List<String> dates = new ArrayList<>(pricesAndDates.keySet());
+        List<Double> prices = new ArrayList<>(pricesAndDates.values());
+
+        if (prices.size() < period) {
+            return ema;
+        }
+
+        double result = prices.getFirst();
+        double multiplier = 2.0 / (period + 1);
+
+        for (int i = 1; i < dates.size(); i++) {
+            result = (prices.get(i) - result) * multiplier + result;
+            ema.put(dates.get(i), result);
+        }
+
+        return ema;
+    }
 
     public static double calculateSMA(List<Double> prices, int period) {
         if (!hasEnoughData(prices, period)) {

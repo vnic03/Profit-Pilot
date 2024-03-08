@@ -2,7 +2,7 @@
 .chart-container {
   background-color: #fff;
   border: 1px solid #ddd;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 
   .recharts-tooltip-wrapper {
     .recharts-default-tooltip {
@@ -30,11 +30,36 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  z-index: 1000;
 }
 
 .modal-content {
   background-color: #fff;
   padding: 20px;
   border-radius: 5px;
+  z-index: 1001;
 }
 
+.indicator-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting label {
+  min-width: 80px;
+}
+
+input[type="range"] {
+  flex-grow: 1;
+}
+
+.manual-input {
+  width: 60px;
+}

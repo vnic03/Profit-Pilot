@@ -1,13 +1,12 @@
 package org.example.profitpilot.database;
 
+import org.example.profitpilot.feature_engineering.MarketIndicatorsCalculator;
 import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.sql.Date;
+import java.util.*;
 
 @Service
 public class DatabaseService {
@@ -22,32 +21,35 @@ public class DatabaseService {
         return dataSource.getConnection();
     }
 
-    public void insertSharePrice
-            (String symbol,String date, double open, double high,
-             double low, double close, long volume)
-    {
-        if (!validateData(symbol, date, open, high, low, close, volume)) {
-            System.out.println("Invalid data, insertion aborted.");
-            return;
-        }
-
-        String SQL =
+    public void insertSharePrice(List<SharePrice> sharePrices) {
+        final String SQL =
                 "INSERT INTO aktienkurse(symbol, date, open, high, low, close, volume) VALUES(?,?,?,?,?,?,?)";
 
         try (Connection connection = connect();
             PreparedStatement pstmt = connection.prepareStatement(SQL))
         {
-            pstmt.setString(1, symbol);
-            pstmt.setDate(2, java.sql.Date.valueOf(date));
-            pstmt.setDouble(3, open);
-            pstmt.setDouble(4, high);
-            pstmt.setDouble(5, low);
-            pstmt.setDouble(6, close);
-            pstmt.setLong(7, volume);
+            int count = 0;
 
-            pstmt.executeUpdate();
-            System.out.println("A new record has been added.");
+            for (SharePrice sp : sharePrices) {
+                if (!validateData(
+                        sp.symbol(), sp.date(), sp.open(), sp.high(), sp.low(), sp.close(), sp.volume()))
+                {
+                    continue;
+                }
+                pstmt.setString(1, sp.symbol());
+                pstmt.setDate(2, java.sql.Date.valueOf(sp.date()));
+                pstmt.setDouble(3, sp.open());
+                pstmt.setDouble(4, sp.high());
+                pstmt.setDouble(5, sp.low());
+                pstmt.setDouble(6, sp.close());
+                pstmt.setLong(7,sp.volume());
 
+                pstmt.addBatch();
+
+                if (++count % 100 == 0 || count == sharePrices.size()) {
+                    pstmt.executeBatch();
+                }
+            }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
@@ -89,6 +91,10 @@ public class DatabaseService {
         return getMarketData(symbol, "open");
     }
 
+    public Map<String, Double> getClosePrices(String symbol) {
+        return getMarketData(symbol, "close");
+    }
+
     public Map<String, Long> getVolume(String symbol) {
         Map<String, Long> data = new HashMap<>();
         String SQL = "SELECT date, volume FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
@@ -111,7 +117,7 @@ public class DatabaseService {
 
    private Map<String, Double> getMarketData(String symbol, String column) {
        Map<String, Double> data = new HashMap<>();
-       String SQL = "SELECT date, " + column + " FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
+       final String SQL = "SELECT date, " + column + " FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
        try (Connection connection = connect();
             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
@@ -129,86 +135,63 @@ public class DatabaseService {
        return data;
    }
 
-    public Map<String, Double> getClosePrices(String symbol) {
-        String SQL = "SELECT date, close FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
-        Map<String, Double> prices = new HashMap<>();
+   private Map<String, Double> getClosingPrices(String symbol) {
+       Map<String, Double> prices = new LinkedHashMap<>();
+       final String SQL = "SELECT date, close FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
-        try (Connection connection = connect();
-             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+       try (Connection connection = connect();
+            PreparedStatement pstmt = connection.prepareStatement(SQL))
+       {
+           pstmt.setString(1, symbol);
+           try (ResultSet rs = pstmt.executeQuery()) {
+               while (rs.next()) {
+                   String date = rs.getString("date");
+                   double close = rs.getDouble("close");
+                   prices.put(date, close);
+               }
+           }
+       } catch (SQLException e) {
+           System.out.println("Error fetching closing prices: " + e.getMessage());
+       }
+       return prices;
+   }
 
-            pstmt.setString(1, symbol);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String date = rs.getString("date");
-                    double close = rs.getDouble("close");
-                    prices.put(date, close);
-                }
-            }
-        } catch (SQLException e) {
-            System.out.println("Error fetching prices: " + e.getMessage());
-        }
-        return prices;
+   public Map<String, Double> getSMA(String symbol, int period) {
+        Map<String, Double> prices = getClosingPrices(symbol);
+        return MarketIndicatorsCalculator.SMA(prices, period);
+   }
+
+    public Map<String, Double> getRSI(String symbol, int period) {
+        Map<String, Double> prices = getClosingPrices(symbol);
+        return MarketIndicatorsCalculator.RSI(prices, period);
     }
 
-    public Map<String, Double> getSMA(String symbol) {
-        final String SQL = "SELECT datum, sma FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
-        Map<String, Double> data = new HashMap<>();
-
-        try (Connection connection = connect();
-             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-
-            pstmt.setString(1, symbol);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String date = rs.getString("datum");
-                    double sma = rs.getDouble("sma");
-                    data.put(date, sma);
-                }
-            }
-        } catch (SQLException e) {
-            System.out.println("Error fetching SMA data: " + e.getMessage());
-        }
-        return data;
-    }
-
-    public Map<String, Double> getEMA(String symbol) {
-        final String SQL = "SELECT datum, ema FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
-        Map<String, Double> data = new HashMap<>();
-
-        try (Connection connection = connect();
-             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-
-            pstmt.setString(1, symbol);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String date = rs.getString("datum");
-                    double ema = rs.getDouble("ema");
-                    data.put(date, ema);
-                }
-            }
-        } catch (SQLException e) {
-            System.out.println("Error fetching EMA data: " + e.getMessage());
-        }
-        return data;
+    public Map<String, Double> getEMA(String symbol, int period) {
+        Map<String, Double> prices = getClosingPrices(symbol);
+        return MarketIndicatorsCalculator.EMA(prices, period);
     }
 
     public Map<String, Double> getMACD(String symbol) {
-        final String SQL = "SELECT datum, macd FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
+        return getFinancialIndicator(symbol, "macd");
+    }
+
+    private Map<String, Double> getFinancialIndicator(String symbol, String indicator) {
+        final String SQL = "SELECT datum, " + indicator + " FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
         Map<String, Double> data = new HashMap<>();
 
         try (Connection connection = connect();
-            PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
 
             pstmt.setString(1, symbol);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     String date = rs.getString("datum");
-                    double macd = rs.getDouble("macd");
-                    data.put(date, macd);
+                    double value = rs.getDouble(indicator);
+                    data.put(date, value);
                 }
             }
         } catch (SQLException e) {
-            System.out.println("Error fetching MACD data: " + e.getMessage());
+            System.out.println("Error fetching " + indicator + " data: " + e.getMessage());
         }
         return data;
     }
@@ -249,4 +232,7 @@ public class DatabaseService {
         if (open < 0 || high < 0 || low < 0 || close < 0) return false;
         return !(high < low);
     }
+
+    public record SharePrice
+            (String symbol, String date, Double open, Double high, Double low, Double close, Long volume) { }
 }
