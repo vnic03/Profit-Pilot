@@ -28,6 +28,11 @@ const descriptions = {
         "Exponential Moving Average (EMA) is similar to SMA but gives more weight to recent prices, thus being more responsive to new information.",
         "It's used by traders to identify trends earlier."
     ],
+    RSI: [
+        "The Relative Strength Index (RSI) is a momentum indicator that measures the magnitude of recent price changes to evaluate overbought or oversold conditions in the price of a stock or other asset.",
+        "It oscillates between 0 and 100, where readings above 70 indicate overbought conditions, and readings below 30 suggest oversold conditions.",
+        "It is commonly used to identify potential reversal points by comparing the magnitude of recent gains to recent losses."
+    ],
     MACD: [
         "Moving Average Convergence Divergence (MACD) is a momentum indicator that shows the relationship between two moving averages of a security’s price.",
         "It's used to spot market momentum and potential buy/sell signals."

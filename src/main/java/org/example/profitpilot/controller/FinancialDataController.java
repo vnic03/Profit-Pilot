@@ -3,10 +3,7 @@ package org.example.profitpilot.controller;
 import org.example.profitpilot.database.DatabaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -46,18 +43,23 @@ public class FinancialDataController {
         return ResponseEntity.ok(dbService.getClosePrices(symbol));
     }
 
-    @GetMapping("/ema/{symbol}")
-    public ResponseEntity<Map<String, Double>> getEMA(@PathVariable String symbol) {
-        return ResponseEntity.ok(dbService.getEMA(symbol));
-    }
-
-    @GetMapping("/sma/{symbol}")
-    public ResponseEntity<Map<String, Double>> getSMA(@PathVariable String symbol) {
-        return ResponseEntity.ok(dbService.getSMA(symbol));
-    }
-
     @GetMapping("/macd/{symbol}")
     public ResponseEntity<Map<String, Double>> getMACD(@PathVariable String symbol) {
         return ResponseEntity.ok(dbService.getMACD(symbol));
+    }
+
+    @GetMapping("/dynamicSMA/{symbol}/{period}")
+    public ResponseEntity<Map<String, Double>> getSMA(@PathVariable String symbol, @PathVariable int period) {
+        return ResponseEntity.ok(dbService.getSMA(symbol, period));
+    }
+
+    @GetMapping("/dynamicEMA/{symbol}/{period}")
+    public ResponseEntity<Map<String, Double>> getEMA(@PathVariable String symbol, @PathVariable int period) {
+        return ResponseEntity.ok(dbService.getEMA(symbol, period));
+    }
+
+    @GetMapping("/dynamicRSI/{symbol}/{period}")
+    public ResponseEntity<Map<String, Double>> getRSI(@PathVariable String symbol, @PathVariable int period) {
+        return ResponseEntity.ok(dbService.getRSI(symbol, period));
     }
 }
