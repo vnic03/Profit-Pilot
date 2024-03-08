@@ -38,3 +38,5 @@ export const getSMA = (symbol, period) => fetchFromApi(`dynamicSMA/${symbol}/${p
 export const getEMA = (symbol, period) => fetchFromApi(`dynamicEMA/${symbol}/${period}`, { period });
 
 export const getRSI = (symbol, period) => fetchFromApi(`dynamicRSI/${symbol}/${period}`, { period });
+
+export const getWinnersAndLosers = (symbol, amount) => fetchFromApi(`winnersAndLosers/${symbol}/${amount}`);

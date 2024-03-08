@@ -1,10 +1,12 @@
 package org.example.profitpilot.controller;
 
+import org.example.profitpilot.api.StockChange;
 import org.example.profitpilot.database.DatabaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -61,5 +63,16 @@ public class FinancialDataController {
     @GetMapping("/dynamicRSI/{symbol}/{period}")
     public ResponseEntity<Map<String, Double>> getRSI(@PathVariable String symbol, @PathVariable int period) {
         return ResponseEntity.ok(dbService.getRSI(symbol, period));
+    }
+
+    @GetMapping("/winnersAndLosers/{symbol}/{amount}")
+    public ResponseEntity<Map<String, List<StockChange>>> getWinnersAndLosers
+            (@PathVariable String symbol, @PathVariable int amount)
+    {
+        Map<String, List<StockChange>> wandL = dbService.calculateWinnersAndLosers(symbol, amount);
+        if (wandL.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(wandL);
     }
 }

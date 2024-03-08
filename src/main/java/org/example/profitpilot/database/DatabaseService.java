@@ -1,5 +1,7 @@
 package org.example.profitpilot.database;
 
+import org.example.profitpilot.api.AlphaVantageCache;
+import org.example.profitpilot.api.StockChange;
 import org.example.profitpilot.feature_engineering.MarketIndicatorsCalculator;
 import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
@@ -12,9 +14,11 @@ import java.util.*;
 public class DatabaseService {
 
     private final DataSource dataSource;
+    private final AlphaVantageCache alphaVantageCache;
 
-    public DatabaseService(DataSource dataSource) {
+    public DatabaseService(DataSource dataSource, AlphaVantageCache alphaVantageCache) {
         this.dataSource = dataSource;
+        this.alphaVantageCache = alphaVantageCache;
     }
 
     public Connection connect() throws SQLException {
@@ -231,6 +235,10 @@ public class DatabaseService {
         if (symbol == null || symbol.isEmpty()) return false;
         if (open < 0 || high < 0 || low < 0 || close < 0) return false;
         return !(high < low);
+    }
+
+    public Map<String, List<StockChange>> calculateWinnersAndLosers(String symbol, int amount) {
+        return alphaVantageCache.calculateWinnersAndLosers(symbol, amount);
     }
 
     public record SharePrice
