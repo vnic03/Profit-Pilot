@@ -1,16 +1,12 @@
-import React, {useEffect, useState, useCallback} from "react";
+import React, {useState, useCallback, useMemo} from "react";
 import {LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush} from 'recharts';
-import {getClosePrices, getMACD, getSMA, getEMA, getRSI, getHigh, getOpen, getLow, getVolume} from "../../../service/financeService";
 import { FaInfoCircle } from 'react-icons/fa';
 import "./protoypeStyles.scss";
-import "./descriptions";
 import descriptions from "./descriptions";
-
-const MIN_PERIOD: number = 1;
-const MAX_PERIOD: number = 50;
+import {FinancialSymbolData} from "../../../service/FinanceData";
 
 interface StockChartProps {
-    symbol: string;
+    symbolData: FinancialSymbolData;
 }
 
 interface ChartData {
@@ -40,18 +36,14 @@ interface Description {
     MACD: string[];
 }
 
-const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
-    const [data, setData] = useState<ChartData[]>([]);
+const MIN_PERIOD: number = 1;
+const MAX_PERIOD: number = 50;
 
-    const [smaPeriod, setSmaPeriod] = useState<number>(14);
-    const [emaPeriod, setEmaPeriod] = useState<number>(14);
-    const [rsiPeriod, setRsiPeriod] = useState<number>(14);
-    /*
-    // macd-settings
-    const [longPeriod, setLongPeriod] = useState(26);
-    const [shortPeriod, setShortPeriod] = useState(12);
-    const [signalPeriod, setSignalPeriod] = useState(9);
-     */
+const StockChart: React.FC<StockChartProps> = React.memo(({ symbolData }) => {
+    const [smaPeriod, setSmaPeriod] = useState(14);
+    const [emaPeriod, setEmaPeriod] = useState(14);
+    const [rsiPeriod, setRsiPeriod] = useState(14);
+
     const [visibleData, setVisibleData] = useState({
         close: true,
         high: true,
@@ -67,48 +59,20 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     const [showModal, setShowModal] = useState(false);
     const [modalContent, setModalContent] = useState("");
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
 
-                const [closePrices, high, low, open, volume, macd] = await Promise.all([
-                    getClosePrices(symbol),
-                    getHigh(symbol),
-                    getLow(symbol),
-                    getOpen(symbol),
-                    getVolume(symbol),
-                    getMACD(symbol),
-                ]);
+    const data: ChartData[] = useMemo(() =>  symbolData ? Object.keys(symbolData.closePrices).map(date => ({
+        date: date,
+        close: symbolData.closePrices?.[date],
+        high: symbolData.high?.[date],
+        low: symbolData.low?.[date],
+        open: symbolData.open?.[date],
+        volume: symbolData.volume?.[date],
+        SMA: symbolData.sma?.[date],
+        EMA: symbolData.ema?.[date],
+        RSI: symbolData.rsi?.[date],
+        MACD: symbolData.macd?.[date],
+    })) : [], [symbolData]);
 
-                const [smaData, emaData, rsiData] = await Promise.all([
-                    getSMA(symbol, smaPeriod),
-                    getEMA(symbol, emaPeriod),
-                    getRSI(symbol, rsiPeriod),
-                ]);
-
-                const formatData: ChartData[] = Object.keys(closePrices).map(date => ({
-                    date: date,
-                    close: closePrices[date],
-                    high: high[date],
-                    low: low[date],
-                    open: open[date],
-                    volume: volume[date],
-                    SMA: smaData[date],
-                    EMA: emaData[date],
-                    RSI: rsiData[date],
-                    MACD: macd[date],
-                }))
-
-                setData(formatData);
-
-            } catch (error) {
-                console.error("An error occurred while fetching chart data:", error);
-            }
-        };
-
-        fetchData();
-
-    }, [symbol, smaPeriod, emaPeriod, rsiPeriod]);
 
     const toggleDataSeries = useCallback((name: keyof typeof visibleData) => {
         setVisibleData(state => ({
@@ -161,29 +125,35 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             </button>
 
             <div className="indicator-settings">
-                <div className={"setting"}>
-                    <label>SMA Period:</label>
-                    <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={smaPeriod}
-                           onChange={(e) => setSmaPeriod(Number(e.target.value))}/>
-                    <input type="number" value={smaPeriod} onChange={(e) => setSmaPeriod(Number(e.target.value))}
-                           className="manual-input"/>
-                </div>
+                {visibleData.SMA && (
+                    <div className={"setting"}>
+                        <label>SMA Period:</label>
+                        <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={smaPeriod}
+                               onChange={(e) => setSmaPeriod(Number(e.target.value))}/>
+                        <input type="number" value={smaPeriod} onChange={(e) => setSmaPeriod(Number(e.target.value))}
+                               className="manual-input"/>
+                    </div>
+                )}
 
-                <div className="setting">
-                    <label>EMA Period:</label>
-                    <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={emaPeriod}
-                           onChange={(e) => setEmaPeriod(Number(e.target.value))}/>
-                    <input type="number" value={emaPeriod} onChange={(e) => setEmaPeriod(Number(e.target.value))}
-                           className="manual-input"/>
-                </div>
+                {visibleData.EMA && (
+                    <div className="setting">
+                        <label>EMA Period:</label>
+                        <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={emaPeriod}
+                               onChange={(e) => setEmaPeriod(Number(e.target.value))}/>
+                        <input type="number" value={emaPeriod} onChange={(e) => setEmaPeriod(Number(e.target.value))}
+                               className="manual-input"/>
+                    </div>
+                )}
 
-                <div className="setting">
-                    <label>RSI Period:</label>
-                    <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={rsiPeriod}
-                           onChange={(e) => setRsiPeriod(Number(e.target.value))}/>
-                    <input type="number" value={rsiPeriod} onChange={(e) => setRsiPeriod(Number(e.target.value))}
-                           className="manual-input"/>
-                </div>
+                {visibleData.RSI && (
+                    <div className="setting">
+                        <label>RSI Period:</label>
+                        <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={rsiPeriod}
+                               onChange={(e) => setRsiPeriod(Number(e.target.value))}/>
+                        <input type="number" value={rsiPeriod} onChange={(e) => setRsiPeriod(Number(e.target.value))}
+                               className="manual-input"/>
+                    </div>
+                )}
             </div>
 
             <ResponsiveContainer width="100%" height={500}>
@@ -223,6 +193,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             </ResponsiveContainer>
         </div>
     );
-};
+});
 
 export default StockChart;

@@ -6,8 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
+import java.util.List;
+
 @Component
 public class AppStartUpRunner implements CommandLineRunner {
+
+    private static final List<String> SYMBOLS_TO_PRELOAD =
+            Arrays.asList("IBM", "AAPL", "GOOGL", "MSFT", "AMZN");
 
     private static final int DEFAULT_SMA_PERIOD = 14;
     private static final int DEFAULT_EMA_PERIOD = 14;
@@ -27,8 +33,14 @@ public class AppStartUpRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        apiClient.fetchDailyTimeSeries
-                ("IBM", DEFAULT_SMA_PERIOD, DEFAULT_EMA_PERIOD, DEFAULT_RSI_PERIOD,
-                DEFAULT_LONG_PERIOD, DEFAULT_SHORT_PERIOD, DEFAULT_SIGNAL_PERIOD);
+        SYMBOLS_TO_PRELOAD.forEach(symbol -> {
+            try {
+                apiClient.fetchDailyTimeSeries
+                        (symbol, DEFAULT_SMA_PERIOD, DEFAULT_EMA_PERIOD, DEFAULT_RSI_PERIOD,
+                                DEFAULT_LONG_PERIOD, DEFAULT_SHORT_PERIOD, DEFAULT_SIGNAL_PERIOD);
+            } catch (Exception e) {
+                System.err.println("Error loading data for: " + symbol);
+            }
+        });
     }
 }

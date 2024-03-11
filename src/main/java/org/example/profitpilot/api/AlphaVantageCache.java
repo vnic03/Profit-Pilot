@@ -31,7 +31,7 @@ public class AlphaVantageCache {
 
     public AlphaVantageCache() {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
+                .maximumSize(6000)
                 .expireAfterWrite(1, TimeUnit.DAYS)
                 .build(new CacheLoader<>() {
                     @Override
@@ -106,8 +106,8 @@ public class AlphaVantageCache {
 
             JSONObject jsonObject = new JSONObject(response.body());
             Map<String, String> companyInfo = new HashMap<>();
-            companyInfo.put("fullName", jsonObject.getString("Name"));
-            companyInfo.put("industry", jsonObject.getString("Industry"));
+            companyInfo.put("fullName", jsonObject.optString("Name", "Unknown Company"));
+            companyInfo.put("industry", jsonObject.optString("Industry", "Unknown Industry"));
 
             return companyInfo;
         } catch (IOException e) {
