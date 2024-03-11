@@ -4,7 +4,6 @@ import './styles.scss';
 
 interface MarketMoversProps {
     symbol: string;
-    amount: number;
 }
 
 interface StockChange {
@@ -14,8 +13,9 @@ interface StockChange {
     industry?: string
 }
 
-const MarketMovers: React.FC<MarketMoversProps> = ({symbol, amount}) => {
+const MarketMovers: React.FC<MarketMoversProps> = ({symbol}) => {
     const [movers, setMovers] = useState<{ winners: StockChange[], losers: StockChange[] }>({ winners: [], losers: [] });
+    const [amount, setAmount] = useState<number>(5);
 
     useEffect(() => {
         const fetchMovers = async () => {
@@ -40,6 +40,10 @@ const MarketMovers: React.FC<MarketMoversProps> = ({symbol, amount}) => {
         fetchMovers();
 
     }, [symbol, amount]);
+
+    const handleLoadMore = () => {
+        setAmount(prevAmount => prevAmount + 5);
+    }
 
     return (
         <div className="market-movers">
@@ -66,6 +70,7 @@ const MarketMovers: React.FC<MarketMoversProps> = ({symbol, amount}) => {
                     ))}
                 </ul>
             </div>
+            <button onClick={handleLoadMore}>Load More</button>
         </div>
     );
 };
