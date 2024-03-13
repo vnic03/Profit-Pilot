@@ -1,7 +1,7 @@
 package org.example.profitpilot.database;
 
-import org.example.profitpilot.api.AlphaVantageCache;
-import org.example.profitpilot.api.StockChange;
+import org.example.profitpilot.api.alpha_vantage.AlphaVantageCache;
+import org.example.profitpilot.api.alpha_vantage.StockChange;
 import org.example.profitpilot.feature_engineering.MarketIndicatorsCalculator;
 import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
@@ -237,8 +237,8 @@ public class DatabaseService {
         return !(high < low);
     }
 
-    public Map<String, List<StockChange>> calculateWinnersAndLosers(String symbol, int amount) {
-        return alphaVantageCache.calculateWinnersAndLosers(symbol, amount);
+    public Map<String, List<StockChange>> getWinnersAndLosers(int amount) {
+        return alphaVantageCache.winnersAndLooser(amount);
     }
 
     public record SharePrice

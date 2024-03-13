@@ -1,51 +1,29 @@
-package org.example.profitpilot.api;
+package org.example.profitpilot.api.alpha_vantage;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import io.github.cdimascio.dotenv.Dotenv;
+import org.example.profitpilot.AppStartUpRunner;
+import org.example.profitpilot.api.CacheBase;
 import org.json.JSONObject;
-import org.springframework.lang.NonNull;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
-public class AlphaVantageCache {
-
-    private final Dotenv dotenv = Dotenv.load();
-    private final String apiKey = dotenv.get("ALPHA_VANTAGE_API_KEY");
-    private final HttpClient httpClient = HttpClient.newHttpClient();
-    private final LoadingCache<String, ApiResponse> cache;
-    private final Logger logger = LoggerFactory.getLogger(AlphaVantageCache.class);
+public class AlphaVantageCache extends CacheBase<ApiResponse> {
 
     public AlphaVantageCache() {
-        cache = CacheBuilder.newBuilder()
-                .maximumSize(6000)
-                .expireAfterWrite(1, TimeUnit.DAYS)
-                .build(new CacheLoader<>() {
-                    @Override
-                    public ApiResponse load(@NonNull String key) {
-                        return fetchDataFromAlphaVantage(key);
-                    }
-                });
+        super();
+        this.apiKey = dotenv.get("ALPHA_VANTAGE_API_KEY");
     }
 
-    public ApiResponse getData(String key) {
-        return cache.getUnchecked(key);
-    }
-
-    private ApiResponse fetchDataFromAlphaVantage(String symbol) {
+    @Override
+    protected ApiResponse fetchData(String symbol) {
         final String uri = String.format(
                 "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
                 symbol, apiKey
@@ -54,6 +32,7 @@ public class AlphaVantageCache {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            logger.info("API Response: {}", response.body());
 
             if (response.statusCode() != 200) {
                 logger.error("Request error: HTTP status code {}", response.statusCode());
@@ -116,10 +95,29 @@ public class AlphaVantageCache {
             logger.error("Interrupted Exception occurred while OVERVIEW data", e);
             Thread.currentThread().interrupt();
         }
-        return null;
+        return new HashMap<>();
     }
 
-    public Map<String,List<StockChange>> calculateWinnersAndLosers(String symbol, int amount)
+    public Map<String, List<StockChange>> winnersAndLooser(int amount) {
+        List<StockChange> winners = new ArrayList<>();
+        List<StockChange> losers = new ArrayList<>();
+
+        for (String symbol : AppStartUpRunner.SYMBOLS) {
+            Map<String, List<StockChange>> symbolResults = calculateWinnersAndLosers(symbol, amount);
+
+            winners.addAll(symbolResults.get("winners"));
+            losers.addAll(symbolResults.get("losers"));
+        }
+
+        Map<String, List<StockChange>> results = new HashMap<>();
+
+        results.put("winners", sortAndLimit(winners, amount, false));
+        results.put("losers", sortAndLimit(losers, amount, true));
+
+        return results;
+    }
+
+    private Map<String,List<StockChange>> calculateWinnersAndLosers(String symbol, int amount)
     {
         ApiResponse response = getData(symbol);
         if (response == null) {
@@ -141,26 +139,19 @@ public class AlphaVantageCache {
             double currentClose = timeSeries.get(dates[i]).close();
             double percentChange = (currentClose - previousClose) / previousClose * 100;
 
-            StockChange change = new StockChange(symbol, percentChange, LocalDate.parse(dates[i]));
+            StockChange change =
+                    createStockChangeWithInfo(new StockChange(symbol, percentChange, LocalDate.parse(dates[i])), companyInfo);
+
             if (percentChange > 0) {
                 winners.add(change);
             } else {
                 losers.add(change);
             }
         }
-        winners.sort((o1, o2) -> Double.compare(o2.getPercentageRate(), o1.getPercentageRate()));
-        losers.sort((o1, o2) -> Double.compare(o2.getPercentageRate(), o1.getPercentageRate()));
-
-        List<StockChange> winnersWithInfo = winners.stream()
-                .map(winner -> createStockChangeWithInfo(winner, companyInfo)).toList();
-
-        List<StockChange> losersWithInfo = losers.stream()
-                .map(loser -> createStockChangeWithInfo(loser, companyInfo)).toList();
-
         Map<String, List<StockChange>> result = new HashMap<>();
 
-        result.put("winners", winnersWithInfo.size() > amount ? winnersWithInfo.subList(0, amount) : winnersWithInfo);
-        result.put("losers", losersWithInfo.size() > amount ? losersWithInfo.subList(0, amount) : losersWithInfo);
+        result.put("winners", sortAndLimit(winners, amount, false));
+        result.put("losers", sortAndLimit(losers, amount, true));
 
         return result;
     }
@@ -170,5 +161,17 @@ public class AlphaVantageCache {
         String industry = companyInfo != null ? companyInfo.getOrDefault("industry", "Unknown Industry") : "Unknown Industry";
 
         return new StockChange(stockChange.getSymbol(), stockChange.getPercentageRate(), stockChange.getDate(), name, industry);
+    }
+
+    private List<StockChange> sortAndLimit(List<StockChange> changes, int amount, boolean ascending) {
+        for (StockChange change : changes) {
+            System.out.println("Symbol: " + change.getSymbol() + ", Change: " + change.getPercentageRate() + ", Date: " + change.getDate());
+        }
+        if (ascending) {
+            changes.sort(Comparator.comparingDouble(StockChange::getPercentageRate));
+        } else {
+            changes.sort((o1, o2) -> Double.compare(o2.getPercentageRate(), o1.getPercentageRate()));
+        }
+        return changes.size() > amount ? changes.subList(0, amount) : changes;
     }
 }

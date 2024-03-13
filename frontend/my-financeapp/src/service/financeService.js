@@ -2,6 +2,7 @@ import axios from "axios";
 
 const baseUrl = 'http://localhost:8080/api/finance';
 
+// service to fetch data from the API
 async function fetchFromApi(endpoint, params = {}) {
     try {
         const response = await axios.get(`${baseUrl}/${endpoint}`, { params });
@@ -39,4 +40,4 @@ export const getEMA = (symbol, period) => fetchFromApi(`dynamicEMA/${symbol}/${p
 
 export const getRSI = (symbol, period) => fetchFromApi(`dynamicRSI/${symbol}/${period}`, { period });
 
-export const getWinnersAndLosers = (symbol, amount) => fetchFromApi(`winnersAndLosers/${symbol}/${amount}`);
+export const getWinnersAndLosers = (amount) => fetchFromApi(`winnersAndLosers/${amount}`);

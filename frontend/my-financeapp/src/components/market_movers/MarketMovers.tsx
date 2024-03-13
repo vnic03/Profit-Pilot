@@ -1,50 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { getWinnersAndLosers } from "../../service/financeService";
+import React from 'react';
 import './styles.scss';
 
 interface MarketMoversProps {
-    symbol: string;
+    movers: {
+        winners: StockChange[],
+        losers: StockChange[]
+    },
+    handleLoadMore: () => void;
 }
 
-interface StockChange {
+export interface StockChange {
     name: string,
     percentChange?: number,
     date: string,
     industry?: string
 }
 
-const MarketMovers: React.FC<MarketMoversProps> = ({symbol}) => {
-    const [movers, setMovers] = useState<{ winners: StockChange[], losers: StockChange[] }>({ winners: [], losers: [] });
-    const [amount, setAmount] = useState<number>(5);
+export interface WinnersAndLosers {
+    winners: StockChange[];
+    losers: StockChange[];
+}
 
-    useEffect(() => {
-        const fetchMovers = async () => {
-            const data = await getWinnersAndLosers(symbol, amount);
-            console.log(data)
-            setMovers({
-                winners: data.winners.map((winner: any) => ({
-                    name: winner.name,
-                    percentChange: winner.percentageRate,
-                    date: winner.date,
-                    industry: winner.industry
-                })),
-                losers: data.losers.map((loser: any) => ({
-                    name: loser.name,
-                    percentChange: loser.percentageRate,
-                    date: loser.date,
-                    industry: loser.industry
-                }))
-            });
-        };
-
-        fetchMovers();
-
-    }, [symbol, amount]);
-
-    const handleLoadMore = () => {
-        setAmount(prevAmount => prevAmount + 5);
-    }
-
+const MarketMovers: React.FC<MarketMoversProps> = ({movers, handleLoadMore}) => {
     return (
         <div className="market-movers">
             <h2>Market Movers</h2>
