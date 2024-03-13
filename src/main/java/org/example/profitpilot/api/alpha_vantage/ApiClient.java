@@ -1,4 +1,4 @@
-package org.example.profitpilot.api;
+package org.example.profitpilot.api.alpha_vantage;
 
 import java.util.ArrayList;
 import java.util.List;
