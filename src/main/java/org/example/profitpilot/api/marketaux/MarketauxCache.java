@@ -1,5 +1,7 @@
 package org.example.profitpilot.api.marketaux;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import org.example.profitpilot.api.CacheBase;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -13,6 +15,14 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class MarketauxCache extends CacheBase<NewsApiResponse> {
+
+    @Value("${profitpilot.marketaux.enabled:false}")
+    private boolean providerEnabled;
+
+    @Override
+    protected boolean isProviderEnabled() {
+        return providerEnabled;
+    }
 
     public MarketauxCache() {
         super();
@@ -28,7 +38,7 @@ public class MarketauxCache extends CacheBase<NewsApiResponse> {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(uri)).build();
 
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = sendExternalRequest(request);
             logger.info("API Response for query {}: {}", query, response.body());
 
             if (response.statusCode() != 200) {

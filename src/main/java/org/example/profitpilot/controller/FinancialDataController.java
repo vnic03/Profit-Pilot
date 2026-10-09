@@ -2,6 +2,7 @@ package org.example.profitpilot.controller;
 
 import org.example.profitpilot.api.alpha_vantage.StockChange;
 import org.example.profitpilot.database.DatabaseService;
+import org.example.profitpilot.feature_engineering.MarketIndicatorsCalculator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -72,5 +73,12 @@ public class FinancialDataController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(winnersAndLosers);
+    }
+
+    @GetMapping("/macd-series/{symbol}")
+    public ResponseEntity<MarketIndicatorsCalculator.MacdResult> getMacdSeries(
+            @PathVariable String symbol) {
+
+        return ResponseEntity.ok(dbService.getMacdSeries(symbol));
     }
 }

@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import './App.css';
 import Navbar from "./components/navbar/Navbar";
@@ -9,30 +9,36 @@ import News from "./components/news/News";
 
 
 function App() {
-    const [symbol, setSymbol] = useState(symbols[0]);
-    const [financeData, setFinanceData] = useState<FinanceDataStructure>({});
+  const [symbol, setSymbol] = useState(symbols[0]);
+  const [financeData, setFinanceData] = useState<FinanceDataStructure>({});
 
-    const [movers, setMovers] = useState<WinnersAndLosers>({ winners: [], losers: [] });
-    const [amount, setAmount] = useState(5);
+  const [movers, setMovers] = useState<WinnersAndLosers>({ winners: [], losers: [] });
+  const [amount, setAmount] = useState(5);
 
-    useEffect(() => {
-        const fetchMovers = async () => {
-            const data = await getWinnersAndLosers(amount);
-            setMovers({ winners: data.winners, losers: data.losers });
-        }
+  useEffect(() => {
+      const fetchMovers = async () => {
+          const data = await getWinnersAndLosers(amount);
+          setMovers({ winners: data.winners, losers: data.losers });
+      }
 
-        fetchMovers();
+      fetchMovers();
 
-    }, [amount]);
+  }, [amount]);
 
-    const handleFinanceDataUpdate = (data: FinanceDataStructure) => {
-        setFinanceData(data);
-        if (data[symbol]) {
-            setSymbol(symbol);
-        } else if (Object.keys(data).length > 0) {
-            setSymbol(Object.keys(data)[0]);
-        }
-    };
+  const handleFinanceDataUpdate = useCallback(
+      (data: FinanceDataStructure) => {
+          setFinanceData(data);
+
+          setSymbol(current => {
+              if (data[current]) {
+                  return current;
+              }
+
+              return Object.keys(data)[0] ?? current;
+          });
+      },
+      []
+  );
 
   return (
       <Router>

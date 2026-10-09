@@ -1,6 +1,5 @@
 package org.example.profitpilot.database;
 
-import org.example.profitpilot.api.alpha_vantage.AlphaVantageCache;
 import org.example.profitpilot.api.alpha_vantage.StockChange;
 import org.example.profitpilot.feature_engineering.MarketIndicatorsCalculator;
 import org.springframework.stereotype.Service;
@@ -14,11 +13,9 @@ import java.util.*;
 public class DatabaseService {
 
     private final DataSource dataSource;
-    private final AlphaVantageCache alphaVantageCache;
 
-    public DatabaseService(DataSource dataSource, AlphaVantageCache alphaVantageCache) {
+    public DatabaseService(DataSource dataSource) {
         this.dataSource = dataSource;
-        this.alphaVantageCache = alphaVantageCache;
     }
 
     public Connection connect() throws SQLException {
@@ -26,36 +23,60 @@ public class DatabaseService {
     }
 
     public void insertSharePrice(List<SharePrice> sharePrices) {
-        final String SQL =
-                "INSERT INTO aktienkurse(symbol, date, open, high, low, close, volume) VALUES(?,?,?,?,?,?,?)";
+        final String SQL = """
+                INSERT INTO aktienkurse
+                  (symbol, date, open, high, low, close, volume)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (symbol, date)
+                DO UPDATE SET
+                  open = EXCLUDED.open,
+                  high = EXCLUDED.high,
+                  low = EXCLUDED.low,
+                  close = EXCLUDED.close,
+                  volume = EXCLUDED.volume
+              """;
 
-        try (Connection connection = connect();
-            PreparedStatement pstmt = connection.prepareStatement(SQL))
-        {
-            int count = 0;
+        if (sharePrices == null || sharePrices.isEmpty()) {
+          throw new IllegalArgumentException("Nothing to save (insertSharePrice)");
+        }
 
-            for (SharePrice sp : sharePrices) {
-                if (!validateData(
-                        sp.symbol(), sp.date(), sp.open(), sp.high(), sp.low(), sp.close(), sp.volume()))
-                {
-                    continue;
+        try (Connection connection = connect()) {
+            connection.setAutoCommit(false);
+
+            try (PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+                for (SharePrice sp : sharePrices) {
+                    if (!validateData(
+                            sp.symbol(), sp.date(), sp.open(), sp.high(),
+                            sp.low(), sp.close(), sp.volume())) {
+                        throw new IllegalArgumentException(
+                                "Invalid data for: " + sp.symbol());
+                    }
+
+                    pstmt.setString(1, sp.symbol());
+                    pstmt.setDate(2, java.sql.Date.valueOf(sp.date()));
+                    pstmt.setDouble(3, sp.open());
+                    pstmt.setDouble(4, sp.high());
+                    pstmt.setDouble(5, sp.low());
+                    pstmt.setDouble(6, sp.close());
+                    pstmt.setLong(7, sp.volume());
+                    pstmt.addBatch();
                 }
-                pstmt.setString(1, sp.symbol());
-                pstmt.setDate(2, java.sql.Date.valueOf(sp.date()));
-                pstmt.setDouble(3, sp.open());
-                pstmt.setDouble(4, sp.high());
-                pstmt.setDouble(5, sp.low());
-                pstmt.setDouble(6, sp.close());
-                pstmt.setLong(7,sp.volume());
 
-                pstmt.addBatch();
+                pstmt.executeBatch();
+                connection.commit();
 
-                if (++count % 100 == 0 || count == sharePrices.size()) {
-                    pstmt.executeBatch();
+            } catch (SQLException | RuntimeException e) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackError) {
+                    e.addSuppressed(rollbackError);
                 }
+                throw e;
             }
+
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            throw new IllegalStateException(
+                    "Could not save shareprices", e);
         }
     }
 
@@ -175,8 +196,17 @@ public class DatabaseService {
         return MarketIndicatorsCalculator.EMA(prices, period);
     }
 
+    public MarketIndicatorsCalculator.MacdResult getMacdSeries(String symbol) {
+        return MarketIndicatorsCalculator.MACD(
+                getClosingPrices(symbol),
+                12,
+                26,
+                9
+        );
+    }
+
     public Map<String, Double> getMACD(String symbol) {
-        return getFinancialIndicator(symbol, "macd");
+        return getMacdSeries(symbol).macd();
     }
 
     private Map<String, Double> getFinancialIndicator(String symbol, String indicator) {
@@ -228,6 +258,47 @@ public class DatabaseService {
         return financialDataList;
     }
 
+    public boolean tryStartDailySync(String symbol) throws SQLException {
+        final String sql = """
+                INSERT INTO stock_sync_status (symbol, last_attempt_at)
+                VALUES (?, CURRENT_TIMESTAMP)
+                ON CONFLICT (symbol) DO UPDATE
+                SET last_attempt_at = EXCLUDED.last_attempt_at
+                WHERE stock_sync_status.last_attempt_at IS NULL OR (stock_sync_status.last_attempt_at
+                      AT TIME ZONE 'Europe/Berlin')::date
+                      < (CURRENT_TIMESTAMP
+                        AT TIME ZONE 'Europe/Berlin')::date
+                RETURNING symbol
+                """;
+
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, symbol);
+
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
+            }
+          }
+    }
+
+    public void markDailySyncSuccessful(String symbol) throws SQLException {
+        final String sql = """
+                UPDATE stock_sync_status
+                SET last_success_at = CURRENT_TIMESTAMP
+                WHERE symbol = ?
+                """;
+
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, symbol);
+
+            if (statement.executeUpdate() != 1) {
+                throw new SQLException(
+                        "Kein Sync-Status vorhanden für: " + symbol);
+            }
+        }
+    }
+
     private boolean validateData
             (String symbol,String date, double open, double high,
              double low, double close, long volume)
@@ -238,7 +309,86 @@ public class DatabaseService {
     }
 
     public Map<String, List<StockChange>> getWinnersAndLosers(int amount) {
-        return alphaVantageCache.winnersAndLooser(amount);
+        if (amount < 1) {
+            throw new IllegalArgumentException();
+        }
+
+        final String sql = """
+                WITH ranked_prices AS (
+                    SELECT
+                        symbol,
+                        date,
+                        close,
+                        LAG(close) OVER (
+                            PARTITION BY symbol ORDER BY date
+                        ) AS previous_close,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY symbol ORDER BY date DESC
+                        ) AS position
+                    FROM aktienkurse
+                )
+                SELECT
+                    symbol,
+                    date,
+                    100.0 * (close - previous_close)
+                        / previous_close AS percentage_rate
+                FROM ranked_prices
+                WHERE position = 1
+                  AND previous_close > 0
+                  AND close >= 0
+                """;
+
+        List<StockChange> winners = new ArrayList<>();
+        List<StockChange> losers = new ArrayList<>();
+
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql);
+            ResultSet result = statement.executeQuery()) {
+
+            while (result.next()) {
+                String symbol = result.getString("symbol");
+                double percentageRate = result.getDouble("percentage_rate");
+
+                if (!Double.isFinite(percentageRate)) {
+                    continue;
+                }
+
+                StockChange change = new StockChange(
+                        symbol,
+                        percentageRate,
+                        result.getDate("date").toLocalDate(),
+                        symbol,
+                        ""
+                );
+
+                if (percentageRate > 0) {
+                    winners.add(change);
+                } else if (percentageRate < 0) {
+                    losers.add(change);
+                }
+            }
+
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "Failed to load winners and loosers", e
+            );
+        }
+
+        winners.sort(
+                Comparator.comparingDouble(StockChange::getPercentageRate)
+                        .reversed()
+                        .thenComparing(StockChange::getSymbol)
+        );
+
+        losers.sort(
+                Comparator.comparingDouble(StockChange::getPercentageRate)
+                        .thenComparing(StockChange::getSymbol)
+        );
+
+        return Map.of(
+                "winners", winners.stream().limit(amount).toList(),
+                "losers", losers.stream().limit(amount).toList()
+        );
     }
 
     public record SharePrice

@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from "react";
-import {getClosePrices, getMACD, getHigh, getOpen, getLow, getRSI, getEMA, getSMA, getVolume} from "./financeService";
+import {getClosePrices, getMACD,getMacdSeries, getHigh, getOpen, getLow, getVolume} from "./financeService";
 import StockChart from "../components/charts/prototype/prototype";
 
 interface SymbolSelectorProps {
@@ -14,6 +14,8 @@ export interface FinancialSymbolData {
     open: { [date: string]: number };
     volume: { [date: string]: number };
     macd: { [date: string]: number };
+    macdSignal: { [date: string]: number };
+    macdHistogram: { [date: string]: number };
     sma: { [date: string]: number };
     ema: { [date: string]: number };
     rsi: { [date: string]: number };
@@ -53,16 +55,20 @@ const FinanceData: React.FC<FinanceDataProps> = ({ onFinanceDataUpdate }) => {
                 return;
             }
 
+            const macdSeries = await getMacdSeries(currentSymbol);
+
             const data: FinancialSymbolData = {
                 closePrices: await getClosePrices(currentSymbol),
                 high: await getHigh(currentSymbol),
                 low: await getLow(currentSymbol),
                 open: await getOpen(currentSymbol),
                 volume: await getVolume(currentSymbol),
-                macd: await getMACD(currentSymbol),
-                sma: await getSMA(currentSymbol, 14),
-                ema: await getEMA(currentSymbol, 14),
-                rsi: await getRSI(currentSymbol, 14),
+                macd: macdSeries.macd,
+                macdSignal: macdSeries.signal,
+                macdHistogram: macdSeries.histogram,
+                sma: {},
+                ema: {},
+                rsi: {},
             };
 
             const newData = { ...financeData, [currentSymbol]: data };
@@ -84,7 +90,11 @@ const FinanceData: React.FC<FinanceDataProps> = ({ onFinanceDataUpdate }) => {
             <SymbolSelector onChange={symbolChange} current={currentSymbol} />
         <div>
             {financeData[currentSymbol] ? (
-                <StockChart symbolData={financeData[currentSymbol]} />
+                <StockChart
+                    key={currentSymbol}
+                    symbol={currentSymbol}
+                    symbolData={financeData[currentSymbol]}
+                />
             ) : (
                 <p>Loading data...</p>
             )}

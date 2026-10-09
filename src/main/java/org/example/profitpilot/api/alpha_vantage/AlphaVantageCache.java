@@ -13,9 +13,19 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+
 
 @Component
 public class AlphaVantageCache extends CacheBase<ApiResponse> {
+
+    @Value("${profitpilot.alpha-vantage.enabled:false}")
+    private boolean providerEnabled;
+
+    @Override
+    protected boolean isProviderEnabled() {
+        return providerEnabled;
+    }
 
     public AlphaVantageCache() {
         super();
@@ -31,8 +41,12 @@ public class AlphaVantageCache extends CacheBase<ApiResponse> {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(uri)).build();
 
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            logger.info("API Response: {}", response.body());
+            HttpResponse<String> response = sendExternalRequest(request);
+            logger.info(
+                    "Received daily price response for {} with HTTP status {}.",
+                    symbol,
+                    response.statusCode()
+            );
 
             if (response.statusCode() != 200) {
                 logger.error("Request error: HTTP status code {}", response.statusCode());
@@ -81,7 +95,7 @@ public class AlphaVantageCache extends CacheBase<ApiResponse> {
         );
         try {
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(uri)).build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = sendExternalRequest(request);
 
             JSONObject jsonObject = new JSONObject(response.body());
             Map<String, String> companyInfo = new HashMap<>();
@@ -105,8 +119,8 @@ public class AlphaVantageCache extends CacheBase<ApiResponse> {
         for (String symbol : AppStartUpRunner.SYMBOLS) {
             Map<String, List<StockChange>> symbolResults = calculateWinnersAndLosers(symbol, amount);
 
-            winners.addAll(symbolResults.get("winners"));
-            losers.addAll(symbolResults.get("losers"));
+            winners.addAll(symbolResults.getOrDefault("winners", List.of()));
+            losers.addAll(symbolResults.getOrDefault("losers", List.of()));
         }
 
         Map<String, List<StockChange>> results = new HashMap<>();

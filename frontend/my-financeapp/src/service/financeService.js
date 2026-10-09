@@ -34,10 +34,12 @@ export const getVolume = (symbol) => fetchFromApi(`volume/${symbol}`);
 
 export const getMACD = (symbol) => fetchFromApi(`macd/${symbol}`);
 
-export const getSMA = (symbol, period) => fetchFromApi(`dynamicSMA/${symbol}/${period}`, { period });
+export const getMacdSeries = (symbol) => fetchFromApi(`macd-series/${symbol}`);
 
-export const getEMA = (symbol, period) => fetchFromApi(`dynamicEMA/${symbol}/${period}`, { period });
+export const getSMA = (symbol, period) => fetchFromApi(`dynamicSMA/${symbol}/${period}`);
 
-export const getRSI = (symbol, period) => fetchFromApi(`dynamicRSI/${symbol}/${period}`, { period });
+export const getEMA = (symbol, period) => fetchFromApi(`dynamicEMA/${symbol}/${period}`);
+
+export const getRSI = (symbol, period) => fetchFromApi(`dynamicRSI/${symbol}/${period}`);
 
 export const getWinnersAndLosers = (amount) => fetchFromApi(`winnersAndLosers/${amount}`);
