@@ -1,24 +1,22 @@
-import React, {useState, useEffect} from "react";
-import {getClosePrices, getMACD,getMacdSeries, getHigh, getOpen, getLow, getVolume} from "./financeService";
+import React, {useEffect, useState} from "react";
+import { getClosePrices, getMacdSeries, getHigh, getOpen,
+    getLow, getVolume } from "./financeService";
 import StockChart from "../components/charts/prototype/prototype";
+import ExportButton from "../components/ExportButton";
 
-interface SymbolSelectorProps {
-    onChange: (symbol: string) => void;
-    current: string;
-}
 
 export interface FinancialSymbolData {
-    closePrices: { [date: string]: number };
-    high: { [date: string]: number };
-    low: { [date: string]: number };
-    open: { [date: string]: number };
-    volume: { [date: string]: number };
-    macd: { [date: string]: number };
-    macdSignal: { [date: string]: number };
-    macdHistogram: { [date: string]: number };
-    sma: { [date: string]: number };
-    ema: { [date: string]: number };
-    rsi: { [date: string]: number };
+    closePrices: Record<string, number>;
+    high: Record<string, number>;
+    low: Record<string, number>;
+    open: Record<string, number>;
+    volume: Record<string, number>;
+    macd: Record<string, number>;
+    macdSignal: Record<string, number>;
+    macdHistogram: Record<string, number>;
+    sma: Record<string, number>;
+    ema: Record<string, number>;
+    rsi: Record<string, number>;
 }
 
 export interface FinanceDataStructure {
@@ -26,81 +24,124 @@ export interface FinanceDataStructure {
 }
 
 interface FinanceDataProps {
-    onFinanceDataUpdate: (data: FinanceDataStructure) => void;
+    refreshVersion: number;
 }
 
-const SymbolSelector: React.FC<SymbolSelectorProps> = ({ onChange, current }) => (
-    <div className="symbol-selector">
-        <label htmlFor="symbol-dropdown">Symbol: </label>
-        <select id="symbol-dropdown" value={current}
-                onChange={(e) => onChange(e.target.value)}
-        >
-            {symbols.map((symbol) => (
-                <option key={symbol} value={symbol}>{symbol}</option>
-            ))}
-        </select>
-    </div>
-);
+interface LoadResult {
+    key: string;
+    data: FinancialSymbolData | null;
+    error: string | null;
+}
 
 export const symbols = ["IBM", "AAPL", "GOOGL", "MSFT", "AMZN"];
 
-const FinanceData: React.FC<FinanceDataProps> = ({ onFinanceDataUpdate }) => {
-    const [currentSymbol, setCurrentSymbol] = useState<string>(symbols[0]);
-    const [financeData, setFinanceData] = useState<FinanceDataStructure>({});
+const FinanceData: React.FC<FinanceDataProps> = ({refreshVersion}) => {
+    const [currentSymbol, setCurrentSymbol] = useState(symbols[0]);
+    const [retryVersion, setRetryVersion] = useState(0);
+    const [result, setResult] = useState<LoadResult | null>(null);
+
+    const requestKey =
+        `${currentSymbol}:${refreshVersion}:${retryVersion}`;
 
     useEffect(() => {
+        let cancelled = false;
+
         const loadData = async () => {
-            if (financeData[currentSymbol]) {
-                onFinanceDataUpdate(financeData);
-                return;
+            try {
+                const [closePrices, high, low, open, volume, macdSeries] =
+                    await Promise.all([
+                        getClosePrices(currentSymbol),
+                        getHigh(currentSymbol),
+                        getLow(currentSymbol),
+                        getOpen(currentSymbol),
+                        getVolume(currentSymbol),
+                        getMacdSeries(currentSymbol)
+                    ]);
+
+                if (cancelled) {
+                    return;
+                }
+
+                setResult({
+                    key: requestKey,
+                    error: null,
+                    data: {
+                        closePrices,
+                        high,
+                        low,
+                        open,
+                        volume,
+                        macd: macdSeries.macd,
+                        macdSignal: macdSeries.signal,
+                        macdHistogram: macdSeries.histogram,
+                        sma: {},
+                        ema: {},
+                        rsi: {}
+                    }
+                });
+            } catch {
+                if (!cancelled) {
+                    setResult({
+                        key: requestKey,
+                        data: null,
+                        error: "Could not load stored prices. Check the backend and try again."
+                    });
+                }
             }
-
-            const macdSeries = await getMacdSeries(currentSymbol);
-
-            const data: FinancialSymbolData = {
-                closePrices: await getClosePrices(currentSymbol),
-                high: await getHigh(currentSymbol),
-                low: await getLow(currentSymbol),
-                open: await getOpen(currentSymbol),
-                volume: await getVolume(currentSymbol),
-                macd: macdSeries.macd,
-                macdSignal: macdSeries.signal,
-                macdHistogram: macdSeries.histogram,
-                sma: {},
-                ema: {},
-                rsi: {},
-            };
-
-            const newData = { ...financeData, [currentSymbol]: data };
-
-            setFinanceData(newData);
-            onFinanceDataUpdate(newData);
         };
 
-        loadData();
+        void loadData();
 
-    }, [currentSymbol, financeData, onFinanceDataUpdate]);
+        return () => {
+            cancelled = true;
+        };
+    }, [currentSymbol, requestKey]);
 
-    const symbolChange =(symbol: string) => {
-        setCurrentSymbol(symbol);
-    }
+    const current = result?.key === requestKey ? result : null;
 
-    return(
-        <div>
-            <SymbolSelector onChange={symbolChange} current={currentSymbol} />
-        <div>
-            {financeData[currentSymbol] ? (
-                <StockChart
-                    key={currentSymbol}
-                    symbol={currentSymbol}
-                    symbolData={financeData[currentSymbol]}
-                />
-            ) : (
-                <p>Loading data...</p>
+    return (
+        <section aria-label="Stock prices">
+            <label htmlFor="symbol-dropdown">Symbol: </label>
+            <select
+                id="symbol-dropdown"
+                value={currentSymbol}
+                onChange={event => setCurrentSymbol(event.target.value)}
+            >
+                {symbols.map(symbol => (
+                    <option key={symbol} value={symbol}>
+                        {symbol}
+                    </option>
+                ))}
+            </select>
+
+            <ExportButton key={currentSymbol} symbol={currentSymbol} />
+
+            {!current && (
+                <p role="status">Loading stored prices for {currentSymbol}...</p>
             )}
-        </div>
-    </div>
+
+            {current?.error && (
+                <div role="alert">
+                    <p>{current.error}</p>
+                    <button onClick={() => setRetryVersion(value => value + 1)}>
+                        Retry prices
+                    </button>
+                </div>
+            )}
+
+            {current?.data && (
+                Object.keys(current.data.closePrices).length === 0 ? (
+                    <p>No stored prices available for {currentSymbol}.</p>
+                ) : (
+                    <StockChart
+                        key={requestKey}
+                        symbol={currentSymbol}
+                        symbolData={current.data}
+                    />
+                )
+            )}
+        </section>
     );
-}
+};
 
 export default FinanceData;

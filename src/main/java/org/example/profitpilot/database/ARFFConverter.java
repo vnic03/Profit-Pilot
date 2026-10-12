@@ -1,32 +1,62 @@
 package org.example.profitpilot.database;
 
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
 public class ARFFConverter {
 
-    public static void convert(List<MarketIndicators> dataList, String outputPath)
-    {
+    public static byte[] toBytes(List<MarketIndicators> dataList) {
+        if (dataList.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No complete indicator rows available for export."
+            );
+        }
 
-        try (FileWriter writer = new FileWriter(outputPath)) {
+        StringBuilder content = new StringBuilder();
 
-            writer.write("@RELATION finance\n\n");
-            writer.write("@ATTRIBUTE date DATE \"yyyy-MM-dd\"\n");
-            writer.write("@ATTRIBUTE sma NUMERIC\n");
-            writer.write("@ATTRIBUTE rsi NUMERIC\n");
-            writer.write("@ATTRIBUTE ema NUMERIC\n\n");
-            writer.write("@ATTRIBUTE macd NUMERIC\n");
-            writer.write("@ATTRIBUTE signal_line NUMERIC\n\n");
-            writer.write("@DATA\n");
+        content.append("@RELATION finance\n\n");
+        content.append("% SMA 20, EMA 20, RSI 14, MACD 12/26/9\n");
+        content.append("@ATTRIBUTE date DATE \"yyyy-MM-dd\"\n");
+        content.append("@ATTRIBUTE sma NUMERIC\n");
+        content.append("@ATTRIBUTE rsi NUMERIC\n");
+        content.append("@ATTRIBUTE ema NUMERIC\n");
+        content.append("@ATTRIBUTE macd NUMERIC\n");
+        content.append("@ATTRIBUTE signal_line NUMERIC\n\n");
+        content.append("@DATA\n");
 
-            for(MarketIndicators data : dataList) {
-                writer.write(String.format(Locale.US, "%s, %.6f, %.6f, %.6f, %.6f, %.6f\n",
-                        data.date(), data.sma(), data.rsi(), data.ema(), data.macd(), data.signalLine()));
-            }
+        for (MarketIndicators row : dataList) {
+            content.append(String.format(
+                    Locale.US,
+                    "\"%s\",%.6f,%.6f,%.6f,%.6f,%.6f\n",
+                    row.date(),
+                    row.sma(),
+                    row.rsi(),
+                    row.ema(),
+                    row.macd(),
+                    row.signalLine()
+            ));
+        }
+
+        return content.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static void convert(List<MarketIndicators> dataList, String outputPath) {
+
+        byte[] content = toBytes(dataList);
+        Path path = Path.of(outputPath);
+
+        try {
+            Files.write(path, content);
+
         } catch (IOException e) {
-            System.out.println("Error writing ARFF file: " + e.getMessage());
+            throw new UncheckedIOException(
+                    "Could not write ARFF file: " + path, e
+            );
         }
     }
 }

@@ -1,15 +1,15 @@
 package org.example.profitpilot.controller;
 
+import java.util.List;
+
 import org.example.profitpilot.api.marketaux.MarketauxCache;
 import org.example.profitpilot.api.marketaux.NewsApiResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/news")
@@ -17,17 +17,41 @@ public class NewsDataController {
 
     private final MarketauxCache marketauxCache;
 
-    @Autowired
     public NewsDataController(MarketauxCache marketauxCache) {
         this.marketauxCache = marketauxCache;
     }
 
+    public record NewsResult(
+            String status,
+            List<NewsApiResponse.NewsArticle> articles) {
+    }
+
     @GetMapping
-    public ResponseEntity<List<NewsApiResponse.NewsArticle>> getNews(@RequestParam String query) {
-        NewsApiResponse response = marketauxCache.getData(query);
-        if (response == null || response.articles().isEmpty()) {
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<NewsResult> getNews(
+            @RequestParam String query) {
+
+        if (!marketauxCache.isExternalApiEnabled()) {
+            return ResponseEntity.ok(
+                    new NewsResult("disabled", List.of())
+            );
         }
-        return ResponseEntity.ok(response.articles());
+
+        if (query.isBlank()) {
+            return ResponseEntity.badRequest().body(
+                    new NewsResult("invalid_query", List.of())
+            );
+        }
+
+        NewsApiResponse response = marketauxCache.getData(query.trim());
+
+        if (response == null || response.articles() == null) {
+            return ResponseEntity.status(502).body(
+                    new NewsResult("error", List.of())
+            );
+        }
+
+        return ResponseEntity.ok(
+                new NewsResult("ready", response.articles())
+        );
     }
 }

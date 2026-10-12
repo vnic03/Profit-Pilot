@@ -210,26 +210,38 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                 )}
             </div>
 
-            {visibleData.SMA && sma.loading && (
-                <p role="status">Loading SMA...</p>
-            )}
-            {visibleData.SMA && sma.error && (
-                <p role="alert">SMA: {sma.error}</p>
-            )}
+            {[
+                {name: "SMA", visible: visibleData.SMA, state: sma},
+                {name: "EMA", visible: visibleData.EMA, state: ema},
+                {name: "RSI", visible: visibleData.RSI, state: rsi}
+            ].map(({name, visible, state}) => (
+                visible && (
+                    <div key={name}>
+                        {state.loading && (
+                            <p role="status">Loading {name}...</p>
+                        )}
 
-            {visibleData.EMA && ema.loading && (
-                <p role="status">Loading EMA...</p>
-            )}
-            {visibleData.EMA && ema.error && (
-                <p role="alert">EMA: {ema.error}</p>
-            )}
+                        {state.error && (
+                            <div role="alert">
+                                <p>{name}: {state.error}</p>
 
-            {visibleData.RSI && rsi.loading && (
-                <p role="status">Loading RSI...</p>
-            )}
-            {visibleData.RSI && rsi.error && (
-                <p role="alert">RSI: {rsi.error}</p>
-            )}
+                                {state.canRetry && (
+                                    <button type="button" onClick={state.retry}>
+                                        Retry {name}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {state.empty && (
+                            <p role="status">
+                                Not enough stored prices to calculate {name}
+                                {" "}with this period.
+                            </p>
+                        )}
+                    </div>
+                )
+            ))}
 
             <ResponsiveContainer width="100%" height={500}>
                 <LineChart

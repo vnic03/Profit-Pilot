@@ -3,12 +3,14 @@ package org.example.profitpilot.controller;
 import org.example.profitpilot.api.alpha_vantage.StockChange;
 import org.example.profitpilot.database.DatabaseService;
 import org.example.profitpilot.feature_engineering.MarketIndicatorsCalculator;
+import org.example.profitpilot.AppStartUpRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+
 
 @RestController
 @RequestMapping("/api/finance")
@@ -51,21 +53,6 @@ public class FinancialDataController {
         return ResponseEntity.ok(dbService.getMACD(symbol));
     }
 
-    @GetMapping("/dynamicSMA/{symbol}/{period}")
-    public ResponseEntity<Map<String, Double>> getSMA(@PathVariable String symbol, @PathVariable int period) {
-        return ResponseEntity.ok(dbService.getSMA(symbol, period));
-    }
-
-    @GetMapping("/dynamicEMA/{symbol}/{period}")
-    public ResponseEntity<Map<String, Double>> getEMA(@PathVariable String symbol, @PathVariable int period) {
-        return ResponseEntity.ok(dbService.getEMA(symbol, period));
-    }
-
-    @GetMapping("/dynamicRSI/{symbol}/{period}")
-    public ResponseEntity<Map<String, Double>> getRSI(@PathVariable String symbol, @PathVariable int period) {
-        return ResponseEntity.ok(dbService.getRSI(symbol, period));
-    }
-
     @GetMapping("/winnersAndLosers/{amount}")
     public ResponseEntity<Map<String, List<StockChange>>> getWinnersAndLosers(@PathVariable int amount) {
         Map<String, List<StockChange>> winnersAndLosers = dbService.getWinnersAndLosers(amount);
@@ -80,5 +67,12 @@ public class FinancialDataController {
             @PathVariable String symbol) {
 
         return ResponseEntity.ok(dbService.getMacdSeries(symbol));
+    }
+
+    @GetMapping("/data-status")
+    public ResponseEntity<List<DatabaseService.DataStatus>> getDataStatus() {
+        return ResponseEntity.ok(
+                dbService.getDataStatus(AppStartUpRunner.SYMBOLS)
+        );
     }
 }

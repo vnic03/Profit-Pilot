@@ -8,6 +8,9 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.sql.Date;
 import java.util.*;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+
 
 @Service
 public class DatabaseService {
@@ -81,7 +84,8 @@ public class DatabaseService {
     }
 
     public void insertFinancialIndicator
-            (String symbol, String date, Double sma, Double rsi, Double ema, Double macd, Double signalLine)
+            (String symbol, String date, Double sma, Double rsi,
+             Double ema, Double macd, Double signalLine)
     {
         final String SQL =
                 "INSERT INTO finanzindikatoren " +
@@ -122,7 +126,8 @@ public class DatabaseService {
 
     public Map<String, Long> getVolume(String symbol) {
         Map<String, Long> data = new HashMap<>();
-        String SQL = "SELECT date, volume FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
+        String SQL =
+            "SELECT date, volume FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
         try (Connection connection = connect();
              PreparedStatement pstmt = connection.prepareStatement(SQL)) {
@@ -135,14 +140,15 @@ public class DatabaseService {
                 }
             }
         } catch (SQLException e) {
-            System.out.println("Error fetching volume data: " + e.getMessage());
+            throw new IllegalStateException("Could not load stored volume.", e);
         }
         return data;
     }
 
    private Map<String, Double> getMarketData(String symbol, String column) {
        Map<String, Double> data = new HashMap<>();
-       final String SQL = "SELECT date, " + column + " FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
+       final String SQL = "SELECT date, " + column +
+           " FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
        try (Connection connection = connect();
             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
@@ -155,14 +161,15 @@ public class DatabaseService {
                }
            }
        } catch (SQLException e) {
-           System.out.println("Error fetching " + column + " data: " + e.getMessage());
+           throw new IllegalStateException("Could not load stored market data.", e);
        }
        return data;
    }
 
    private Map<String, Double> getClosingPrices(String symbol) {
        Map<String, Double> prices = new LinkedHashMap<>();
-       final String SQL = "SELECT date, close FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
+       final String SQL =
+           "SELECT date, close FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
        try (Connection connection = connect();
             PreparedStatement pstmt = connection.prepareStatement(SQL))
@@ -176,7 +183,7 @@ public class DatabaseService {
                }
            }
        } catch (SQLException e) {
-           System.out.println("Error fetching closing prices: " + e.getMessage());
+           throw new IllegalStateException("Could not load stored closing prices.", e);
        }
        return prices;
    }
@@ -210,7 +217,8 @@ public class DatabaseService {
     }
 
     private Map<String, Double> getFinancialIndicator(String symbol, String indicator) {
-        final String SQL = "SELECT datum, " + indicator + " FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
+        final String SQL = "SELECT datum, " + indicator +
+            " FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
         Map<String, Double> data = new HashMap<>();
 
         try (Connection connection = connect();
@@ -225,37 +233,44 @@ public class DatabaseService {
                 }
             }
         } catch (SQLException e) {
-            System.out.println("Error fetching " + indicator + " data: " + e.getMessage());
+            System.out.println(
+                    "Error fetching " + indicator + " data: " + e.getMessage()
+            );
         }
         return data;
     }
 
     public List<MarketIndicators> queryFinancialDataForSymbol(String symbol) {
-        List<MarketIndicators> financialDataList = new ArrayList<>();
-        final String SQL =
-                "SELECT datum, sma, rsi, ema, macd, signal_line FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
 
-        try (Connection connection = connect();
-            PreparedStatement pstmt = connection.prepareStatement(SQL))
-        {
-            pstmt.setString(1, symbol);
-            ResultSet rs = pstmt.executeQuery();
+        Map<String, Double> prices = getClosingPrices(symbol);
+        Map<String, Double> sma = MarketIndicatorsCalculator.SMA(prices, 20);
+        Map<String, Double> ema = MarketIndicatorsCalculator.EMA(prices, 20);
+        Map<String, Double> rsi = MarketIndicatorsCalculator.RSI(prices, 14);
+        MarketIndicatorsCalculator.MacdResult macd =
+                MarketIndicatorsCalculator.MACD(prices, 12, 26, 9);
 
-            while (rs.next()) {
-                String date = rs.getString("datum");
-                double sma = rs.getDouble("sma");
-                double rsi = rs.getDouble("rsi");
-                double ema = rs.getDouble("ema");
-                double macd = rs.getDouble("macd");
-                double signalLine = rs.getDouble("signal_line");
+        List<MarketIndicators> rows = new ArrayList<>();
 
-                MarketIndicators financialData = new MarketIndicators(date, sma, rsi, ema, macd, signalLine);
-                financialDataList.add(financialData);
+        for (String date : prices.keySet().stream().sorted().toList()) {
+            if (!sma.containsKey(date)
+                    || !ema.containsKey(date)
+                    || !rsi.containsKey(date)
+                    || !macd.macd().containsKey(date)
+                    || !macd.signal().containsKey(date)) {
+                continue;
             }
-        } catch (SQLException e) {
-            System.out.println("Error querying financial data: " + e.getMessage());
+
+            rows.add(new MarketIndicators(
+                    date,
+                    sma.get(date),
+                    rsi.get(date),
+                    ema.get(date),
+                    macd.macd().get(date),
+                    macd.signal().get(date)
+            ));
         }
-        return financialDataList;
+
+        return rows;
     }
 
     public boolean tryStartDailySync(String symbol) throws SQLException {
@@ -389,6 +404,73 @@ public class DatabaseService {
                 "winners", winners.stream().limit(amount).toList(),
                 "losers", losers.stream().limit(amount).toList()
         );
+    }
+
+    public record DataStatus(
+            String symbol,
+            long priceCount,
+            LocalDate latestPriceDate,
+            OffsetDateTime lastAttemptAt,
+            OffsetDateTime lastSuccessAt) {
+    }
+
+    public List<DataStatus> getDataStatus(List<String> symbols) {
+        if (symbols.isEmpty()) {
+            return List.of();
+        }
+
+        String placeholders = String.join(
+                ", ",
+                Collections.nCopies(symbols.size(), "(?)")
+        );
+
+        String sql = """
+                WITH tracked(symbol) AS (
+                    VALUES %s
+                ),
+                prices AS (
+                    SELECT symbol, COUNT(*) AS price_count,
+                          MAX(date) AS latest_price_date
+                    FROM aktienkurse
+                    GROUP BY symbol
+                )
+                SELECT tracked.symbol,
+                      COALESCE(prices.price_count, 0) AS price_count,
+                      prices.latest_price_date,
+                      sync.last_attempt_at,
+                      sync.last_success_at
+                FROM tracked
+                LEFT JOIN prices ON prices.symbol = tracked.symbol
+                LEFT JOIN stock_sync_status sync
+                    ON sync.symbol = tracked.symbol
+                ORDER BY tracked.symbol
+                """.formatted(placeholders);
+
+        List<DataStatus> result = new ArrayList<>();
+
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            for (int index = 0; index < symbols.size(); index++) {
+                statement.setString(index + 1, symbols.get(index));
+            }
+
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    result.add(new DataStatus(
+                            rows.getString("symbol"),
+                            rows.getLong("price_count"),
+                            rows.getObject("latest_price_date", LocalDate.class),
+                            rows.getObject("last_attempt_at", OffsetDateTime.class),
+                            rows.getObject("last_success_at", OffsetDateTime.class)
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not load data status.", e);
+        }
+
+        return result;
     }
 
     public record SharePrice

@@ -70,10 +70,13 @@ public class MarketauxCache extends CacheBase<NewsApiResponse> {
 
             return new NewsApiResponse(articles);
 
-        } catch (IOException | InterruptedException e) {
-            logger.error("Error occurred while fetching news for query {}", query, e);
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            logger.error("News request was interrupted for query {}", query, e);
             return null;
+        } catch (IOException e) {
+             logger.error("News request failed for query {}", query, e);
+              return null;
         } catch (Exception e) {
             logger.error("An unexpected error occurred while fetching news for query {}", query, e);
             return null;

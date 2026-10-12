@@ -13,6 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.example.profitpilot.database.MarketIndicators;
+import org.junit.jupiter.api.io.TempDir;
+
+
 class ApiClientTest {
 
     private DatabaseService database;
@@ -25,6 +32,9 @@ class ApiClientTest {
         cache = mock(AlphaVantageCache.class);
         client = new ApiClient(database, cache);
     }
+
+    @TempDir
+    Path temporaryDirectory;
 
     @Test
     void disabledApiDoesNotRecordAttemptOrFetchData() throws Exception {
@@ -117,6 +127,74 @@ class ApiClientTest {
 
         verify(cache, never()).fetchData(anyString());
         verify(database, never()).markDailySyncSuccessful(anyString());
+    }
+
+    @Test
+    void exportUsesStoredDataWithoutCallingExternalApi() throws Exception {
+        List<MarketIndicators> rows = List.of(
+                new MarketIndicators(
+                        "2026-10-05",
+                        105.5,
+                        60.0,
+                        104.5,
+                        2.0,
+                        1.5
+                )
+        );
+
+        when(database.queryFinancialDataForSymbol("IBM"))
+                .thenReturn(rows);
+
+        Path output = temporaryDirectory.resolve("ibm.arff");
+
+        client.exportFinancialDataToArff("IBM", output.toString());
+
+        assertTrue(Files.isRegularFile(output));
+        assertTrue(Files.readString(output).contains("@DATA"));
+
+        verify(database).queryFinancialDataForSymbol("IBM");
+        verifyNoMoreInteractions(database);
+        verifyNoInteractions(cache);
+    }
+
+    @Test
+    void exportWithoutCompleteRowsDoesNotCreateFile() {
+        when(database.queryFinancialDataForSymbol("IBM"))
+                .thenReturn(List.of());
+
+        Path output = temporaryDirectory.resolve("empty.arff");
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> client.exportFinancialDataToArff(
+                        "IBM",
+                        output.toString()
+                )
+        );
+
+        assertFalse(Files.exists(output));
+        verifyNoInteractions(cache);
+    }
+
+    @Test
+    void exportPropagatesDatabaseFailureWithoutCreatingFile() {
+        when(database.queryFinancialDataForSymbol("IBM"))
+                .thenThrow(
+                        new IllegalStateException("Database unavailable.")
+                );
+
+        Path output = temporaryDirectory.resolve("failed.arff");
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> client.exportFinancialDataToArff(
+                        "IBM",
+                        output.toString()
+                )
+        );
+
+        assertFalse(Files.exists(output));
+        verifyNoInteractions(cache);
     }
 
     private void allowImport() throws SQLException {

@@ -1,26 +1,33 @@
 import React from "react";
-import { Link } from 'react-router-dom';
-import './navbar.scss';
+import "./navbar.scss";
 
-const Navbar: React.FC = () => {
-    return (
-        <nav className="navbar">
-            <Link to="/">Home</Link>
+const Navbar: React.FC = () => (
+    <aside className="sidebar">
+        <a className="brand" href="#overview" aria-label="Profit Pilot overview">
+            <span className="brand-mark" aria-hidden="true">P</span>
+            <span>
+                <strong>Profit Pilot</strong>
+                <small>Market research</small>
+            </span>
+        </a>
 
-            <div className="nav-links">
-                <Link to="/dashboard">Dashboard</Link>
-                <Link to="/portfolio">Portfolio</Link>
-                <Link to="/tools">Tools</Link>
-                <Link to="/settings">Settings</Link>
-            </div>
+        <nav aria-label="Main navigation">
+            <p className="nav-caption">Workspace</p>
 
-            <div className="search-bar">
-                <input type="text" placeholder="Search..."/>
-                <button type="submit">Search</button>
-            </div>
-
+            <a href="#analysis">Stock analysis</a>
+            <a href="#movers">Market movers</a>
+            <a href="#data-status">Data status</a>
+            <a href="#news">News</a>
         </nav>
-    )
-}
+
+        <div className="sidebar-note">
+            <span className="sidebar-badge">Daily data</span>
+            <p>
+                Research based on stored closing prices.
+                Check each stock's latest price date.
+            </p>
+        </div>
+    </aside>
+);
 
 export default Navbar;
