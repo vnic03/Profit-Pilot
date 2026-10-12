@@ -136,3 +136,21 @@ export async function getArffExport(symbol, signal) {
         );
     }
 }
+
+export async function getStocks(signal) {
+    const response = await axios.get(`${baseUrl}/stocks`, {
+        signal,
+        timeout: 15000
+    });
+
+    return response.data;
+}
+
+export async function getImportBudget(signal) {
+    const response = await axios.get(`${baseUrl}/import-budget`, {
+        signal,
+        timeout: 15000
+    });
+
+    return response.data;
+}

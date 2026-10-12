@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.example.profitpilot.api.marketaux.MarketauxCache;
 import org.example.profitpilot.api.marketaux.NewsApiResponse;
+import org.example.profitpilot.api.marketaux.NewsBudgetExceededException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class NewsDataControllerTest {
     void disabledNewsDoesNotFetchData() throws Exception {
         when(cache.isExternalApiEnabled()).thenReturn(false);
 
-        mvc.perform(get("/api/news").param("query", "Apple"))
+        mvc.perform(get("/api/news").param("symbol", "AAPL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("disabled"))
                 .andExpect(jsonPath("$.articles").isEmpty());
@@ -44,10 +45,10 @@ class NewsDataControllerTest {
     @Test
     void emptyResultsAreSuccessful() throws Exception {
         when(cache.isExternalApiEnabled()).thenReturn(true);
-        when(cache.getData("Apple"))
+        when(cache.getData("AAPL"))
                 .thenReturn(new NewsApiResponse(List.of()));
 
-        mvc.perform(get("/api/news").param("query", "Apple"))
+        mvc.perform(get("/api/news").param("symbol", "AAPL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ready"))
                 .andExpect(jsonPath("$.articles").isEmpty());
@@ -56,21 +57,32 @@ class NewsDataControllerTest {
     @Test
     void providerFailureReturnsBadGateway() throws Exception {
         when(cache.isExternalApiEnabled()).thenReturn(true);
-        when(cache.getData("Apple")).thenReturn(null);
+        when(cache.getData("AAPL")).thenReturn(null);
 
-        mvc.perform(get("/api/news").param("query", "Apple"))
+        mvc.perform(get("/api/news").param("symbol", "AAPL"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.status").value("error"));
     }
 
     @Test
-    void blankQueryDoesNotFetchData() throws Exception {
+    void invalidSymbolDoesNotContactProvider() throws Exception {
+        mvc.perform(get("/api/news").param("symbol", "UNKNOWN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value("invalid_symbol"));
+
+        verifyNoInteractions(cache);
+    }
+
+    @Test
+    void exhaustedBudgetReturnsDistinctResponse() throws Exception {
         when(cache.isExternalApiEnabled()).thenReturn(true);
 
-        mvc.perform(get("/api/news").param("query", " "))
-                .andExpect(status().isBadRequest());
+        when(cache.getData("AAPL"))
+                .thenThrow(new NewsBudgetExceededException());
 
-        verify(cache).isExternalApiEnabled();
-        verifyNoMoreInteractions(cache);
+        mvc.perform(get("/api/news").param("symbol", "AAPL"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value("budget_exhausted"))
+                .andExpect(jsonPath("$.articles").isEmpty());
     }
 }

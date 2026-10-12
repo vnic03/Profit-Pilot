@@ -14,11 +14,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpClient;
 import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 
 public abstract class CacheBase<T> {
 
-    protected HttpClient httpClient = HttpClient.newHttpClient();
+    protected HttpClient httpClient =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+
     protected Dotenv dotenv = Dotenv.load();
     protected Cache<String, T> cache;
     protected String apiKey;

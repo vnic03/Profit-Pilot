@@ -274,32 +274,140 @@ public class DatabaseService {
     }
 
     public boolean tryStartDailySync(String symbol) throws SQLException {
-        final String sql = """
-                INSERT INTO stock_sync_status (symbol, last_attempt_at)
-                VALUES (?, CURRENT_TIMESTAMP)
-                ON CONFLICT (symbol) DO UPDATE
-                SET last_attempt_at = EXCLUDED.last_attempt_at
-                WHERE stock_sync_status.last_attempt_at IS NULL OR (stock_sync_status.last_attempt_at
-                      AT TIME ZONE 'Europe/Berlin')::date
-                      < (CURRENT_TIMESTAMP
-                        AT TIME ZONE 'Europe/Berlin')::date
-                RETURNING symbol
-                """;
+        try (Connection connection = connect()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            int originalIsolation = connection.getTransactionIsolation();
 
-        try (Connection connection = connect();
-            PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, symbol);
+            connection.setTransactionIsolation(
+                    Connection.TRANSACTION_READ_COMMITTED
+            );
+            connection.setAutoCommit(false);
 
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next();
+            try {
+                int requestLimit;
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                        SELECT request_limit
+                        FROM api_budget_state
+                        WHERE provider = 'alpha-vantage'
+                        FOR UPDATE
+                        """);
+                    ResultSet result = statement.executeQuery()) {
+
+                    if (!result.next()) {
+                        throw new SQLException(
+                                "Alpha Vantage budget is not configured."
+                        );
+                    }
+
+                    requestLimit = result.getInt("request_limit");
+                }
+
+                long reservedRequests;
+                long symbolAttempts;
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                        SELECT COUNT(*) AS total_requests,
+                            COUNT(*) FILTER (WHERE symbol = ?) AS symbol_attempts
+                        FROM api_request_reservations
+                        WHERE provider = 'alpha-vantage'
+                        AND reserved_at >
+                            clock_timestamp() - INTERVAL '24 hours'
+                        """)) {
+
+                    statement.setString(1, symbol);
+
+                    try (ResultSet result = statement.executeQuery()) {
+                        result.next();
+
+                        reservedRequests = result.getLong("total_requests");
+                        symbolAttempts = result.getLong("symbol_attempts");
+                    }
+                }
+
+                if (reservedRequests >= requestLimit || symbolAttempts >= 3) {
+                    connection.rollback();
+                    return false;
+                }
+
+                boolean dailyAttemptReserved;
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                            INSERT INTO stock_sync_status (
+                                symbol,
+                                last_attempt_at,
+                                retry_allowed
+                            )
+                            VALUES (?, clock_timestamp(), FALSE)
+                            ON CONFLICT (symbol) DO UPDATE
+                            SET last_attempt_at = EXCLUDED.last_attempt_at,
+                                retry_allowed = FALSE
+                            WHERE stock_sync_status.last_attempt_at IS NULL
+                            OR (
+                                stock_sync_status.last_attempt_at
+                                    <= clock_timestamp() - INTERVAL '1 hour'
+                                AND (
+                                    stock_sync_status.retry_allowed
+                                    OR (
+                                        stock_sync_status.last_attempt_at
+                                        AT TIME ZONE 'Europe/Berlin'
+                                    )::date < (
+                                        clock_timestamp()
+                                        AT TIME ZONE 'Europe/Berlin'
+                                    )::date
+                                )
+                            )
+                            RETURNING symbol
+                        """)) {
+
+                    statement.setString(1, symbol);
+
+                    try (ResultSet result = statement.executeQuery()) {
+                        dailyAttemptReserved = result.next();
+                    }
+                }
+
+                if (!dailyAttemptReserved) {
+                    connection.rollback();
+                    return false;
+                }
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                        INSERT INTO api_request_reservations (
+                            provider,
+                            symbol,
+                            reserved_at
+                        )
+                        VALUES ('alpha-vantage', ?, clock_timestamp())
+                        """)) {
+
+                    statement.setString(1, symbol);
+                    statement.executeUpdate();
+                }
+
+                connection.commit();
+                return true;
+
+            } catch (SQLException | RuntimeException e) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackError) {
+                    e.addSuppressed(rollbackError);
+                }
+
+                throw e;
+
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+                connection.setTransactionIsolation(originalIsolation);
             }
-          }
+        }
     }
 
     public void markDailySyncSuccessful(String symbol) throws SQLException {
         final String sql = """
                 UPDATE stock_sync_status
-                SET last_success_at = CURRENT_TIMESTAMP
+                SET last_success_at = clock_timestamp(), retry_allowed = FALSE
                 WHERE symbol = ?
                 """;
 
@@ -406,6 +514,113 @@ public class DatabaseService {
         );
     }
 
+    public boolean tryReserveNewsRequest(String symbol) throws SQLException {
+        try (Connection connection = connect()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            int originalIsolation = connection.getTransactionIsolation();
+
+            connection.setTransactionIsolation(
+                    Connection.TRANSACTION_READ_COMMITTED
+            );
+            connection.setAutoCommit(false);
+
+            try {
+                int limit;
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                        SELECT request_limit
+                        FROM api_budget_state
+                        WHERE provider = 'marketaux'
+                        FOR UPDATE
+                        """);
+                    ResultSet result = statement.executeQuery()) {
+
+                    if (!result.next()) {
+                        throw new SQLException(
+                                "Marketaux budget is not configured."
+                        );
+                    }
+
+                    limit = result.getInt("request_limit");
+                }
+
+                long reserved;
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                        SELECT COUNT(*)
+                        FROM api_request_reservations
+                        WHERE provider = 'marketaux'
+                        AND reserved_at >
+                            clock_timestamp() - INTERVAL '24 hours'
+                        """);
+                    ResultSet result = statement.executeQuery()) {
+
+                    result.next();
+                    reserved = result.getLong(1);
+                }
+
+                if (reserved >= limit) {
+                    connection.rollback();
+                    return false;
+                }
+
+                try (PreparedStatement statement = connection.prepareStatement("""
+                        INSERT INTO api_request_reservations (
+                            provider,
+                            symbol,
+                            reserved_at
+                        )
+                        VALUES ('marketaux', ?, clock_timestamp())
+                        """)) {
+
+                    statement.setString(1, symbol);
+                    statement.executeUpdate();
+                }
+
+                connection.commit();
+                return true;
+
+            } catch (SQLException | RuntimeException e) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackError) {
+                    e.addSuppressed(rollbackError);
+                }
+
+                throw e;
+
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+                connection.setTransactionIsolation(originalIsolation);
+            }
+        }
+    }
+
+    public void markDailySyncFailed(String symbol) throws SQLException {
+        String sql = """
+                UPDATE stock_sync_status
+                SET retry_allowed = TRUE
+                WHERE symbol = ?
+                AND last_attempt_at IS NOT NULL
+                AND (
+                    last_success_at IS NULL
+                    OR last_success_at < last_attempt_at
+                )
+                """;
+
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, symbol);
+
+            if (statement.executeUpdate() != 1) {
+                throw new SQLException(
+                        "Could not record failed import for: " + symbol
+                );
+            }
+        }
+    }
+
     public record DataStatus(
             String symbol,
             long priceCount,
@@ -473,6 +688,70 @@ public class DatabaseService {
         return result;
     }
 
-    public record SharePrice
-            (String symbol, String date, Double open, Double high, Double low, Double close, Long volume) { }
+    public record ImportBudgetStatus(
+            String provider,
+            int requestLimit,
+            long reservedRequests,
+            long remainingRequests,
+            String window)
+    { }
+
+    public ImportBudgetStatus getImportBudgetStatus() {
+        return getBudgetStatus("alpha-vantage");
+    }
+
+    public ImportBudgetStatus getNewsBudgetStatus() {
+        return getBudgetStatus("marketaux");
+    }
+
+    private ImportBudgetStatus getBudgetStatus(String provider) {
+        final String sql = """
+                SELECT
+                    budget.request_limit,
+                    COUNT(reservation.id) AS reserved_requests
+                FROM api_budget_state budget
+                LEFT JOIN api_request_reservations reservation
+                    ON reservation.provider = budget.provider
+                AND reservation.reserved_at >
+                    statement_timestamp() - INTERVAL '24 hours'
+                WHERE budget.provider = ?
+                GROUP BY budget.provider, budget.request_limit
+                """;
+
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, provider);
+
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) {
+                    throw new IllegalStateException(
+                            "Budget is not configured for " + provider
+                    );
+                }
+
+                int limit = result.getInt("request_limit");
+                long reserved = result.getLong("reserved_requests");
+
+                return new ImportBudgetStatus(
+                        provider,
+                        limit,
+                        reserved,
+                        Math.max(0L, limit - reserved),
+                        "rolling_24_hours"
+                );
+            }
+
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "Could not load budget for " + provider,
+                    e
+            );
+        }
+    }
+
+
+    public record SharePrice(String symbol, String date, Double open,
+            Double high, Double low, Double close, Long volume)
+    { }
 }

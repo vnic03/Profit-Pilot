@@ -8,6 +8,7 @@ import FinanceData from "./service/FinanceData";
 import {getWinnersAndLosers} from "./service/financeService";
 import News from "./components/news/News";
 import DataStatus from "./components/DataStatus";
+import type {Stock} from "./service/useStockCatalog";
 
 
 interface MoversResult {
@@ -21,6 +22,7 @@ function App() {
     const [retryVersion, setRetryVersion] = useState(0);
     const [amount, setAmount] = useState(5);
     const [result, setResult] = useState<MoversResult | null>(null);
+    const [newsStock, setNewsStock] = useState<Stock | null>(null);
 
     const requestKey = `${amount}:${refreshVersion}:${retryVersion}`;
 
@@ -102,7 +104,10 @@ function App() {
                         <span className="subtle-badge">Daily prices</span>
                     </div>
 
-                    <FinanceData refreshVersion={refreshVersion}/>
+                    <FinanceData
+                        refreshVersion={refreshVersion}
+                        onStockChange={setNewsStock}
+                    />
                 </section>
 
                 <section
@@ -164,7 +169,10 @@ function App() {
                     aria-label="Market news"
                 >
                     <p className="eyebrow">04 / Read</p>
-                    <News/>
+                    <News
+                         key={newsStock?.symbol ?? "no-stock"}
+                         stock={newsStock}
+                    />
                 </section>
 
                 <footer className="page-footer">

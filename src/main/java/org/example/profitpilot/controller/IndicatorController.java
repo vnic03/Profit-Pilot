@@ -3,7 +3,7 @@ package org.example.profitpilot.controller;
 import java.util.Locale;
 import java.util.Map;
 
-import org.example.profitpilot.AppStartUpRunner;
+import org.example.profitpilot.catalog.StockCatalog;
 import org.example.profitpilot.database.DatabaseService;
 
 import org.slf4j.Logger;
@@ -43,7 +43,7 @@ public class IndicatorController {
         String normalizedSymbol =
                 symbol.trim().toUpperCase(Locale.ROOT);
 
-        if (!AppStartUpRunner.SYMBOLS.contains(normalizedSymbol)) {
+        if (!StockCatalog.supports(normalizedSymbol)) {
             return error(
                     400,
                     "unsupported_symbol",

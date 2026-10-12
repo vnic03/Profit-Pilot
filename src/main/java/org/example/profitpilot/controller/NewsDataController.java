@@ -1,9 +1,12 @@
 package org.example.profitpilot.controller;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.example.profitpilot.api.marketaux.MarketauxCache;
 import org.example.profitpilot.api.marketaux.NewsApiResponse;
+import org.example.profitpilot.catalog.StockCatalog;
+import org.example.profitpilot.api.marketaux.NewsBudgetExceededException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,35 +26,60 @@ public class NewsDataController {
 
     public record NewsResult(
             String status,
-            List<NewsApiResponse.NewsArticle> articles) {
+            List<NewsApiResponse.NewsArticle> articles,
+            Instant fetchedAt) {
     }
 
     @GetMapping
     public ResponseEntity<NewsResult> getNews(
-            @RequestParam String query) {
+            @RequestParam(name = "symbol", defaultValue = "")
+            String symbol) {
+
+        String normalizedSymbol = StockCatalog.normalize(symbol);
+
+        if (!StockCatalog.supports(normalizedSymbol)) {
+            return ResponseEntity.badRequest().body(
+                    new NewsResult(
+                            "invalid_symbol",
+                            List.of(),
+                            null
+                    )
+            );
+        }
 
         if (!marketauxCache.isExternalApiEnabled()) {
             return ResponseEntity.ok(
-                    new NewsResult("disabled", List.of())
+                    new NewsResult("disabled", List.of(), null)
             );
         }
 
-        if (query.isBlank()) {
-            return ResponseEntity.badRequest().body(
-                    new NewsResult("invalid_query", List.of())
+        NewsApiResponse response;
+
+        try {
+            response = marketauxCache.getData(normalizedSymbol);
+        } catch (NewsBudgetExceededException e) {
+            return ResponseEntity.status(429).body(
+                    new NewsResult(
+                            "budget_exhausted",
+                            List.of(),
+                            null
+                    )
             );
         }
 
-        NewsApiResponse response = marketauxCache.getData(query.trim());
 
         if (response == null || response.articles() == null) {
             return ResponseEntity.status(502).body(
-                    new NewsResult("error", List.of())
+                    new NewsResult("error", List.of(), null)
             );
         }
 
         return ResponseEntity.ok(
-                new NewsResult("ready", response.articles())
+                new NewsResult(
+                        "ready",
+                        response.articles(),
+                        response.fetchedAt()
+                )
         );
     }
 }

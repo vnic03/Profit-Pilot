@@ -3,7 +3,7 @@ package org.example.profitpilot.controller;
 import java.util.List;
 import java.util.Locale;
 
-import org.example.profitpilot.AppStartUpRunner;
+import org.example.profitpilot.catalog.StockCatalog;
 import org.example.profitpilot.database.ARFFConverter;
 import org.example.profitpilot.database.DatabaseService;
 import org.example.profitpilot.database.MarketIndicators;
@@ -44,7 +44,7 @@ public class FinancialExportController {
         String normalizedSymbol =
                 symbol.trim().toUpperCase(Locale.ROOT);
 
-        if (!AppStartUpRunner.SYMBOLS.contains(normalizedSymbol)) {
+        if (!StockCatalog.supports(normalizedSymbol)) {
             return error(
                     400,
                     "unsupported_symbol",

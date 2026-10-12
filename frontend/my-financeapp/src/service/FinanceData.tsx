@@ -3,6 +3,8 @@ import { getClosePrices, getMacdSeries, getHigh, getOpen,
     getLow, getVolume } from "./financeService";
 import StockChart from "../components/charts/prototype/prototype";
 import ExportButton from "../components/ExportButton";
+import {useStockCatalog} from "./useStockCatalog";
+import type {Stock} from "./useStockCatalog";
 
 
 export interface FinancialSymbolData {
@@ -25,6 +27,7 @@ export interface FinanceDataStructure {
 
 interface FinanceDataProps {
     refreshVersion: number;
+    onStockChange?: (stock: Stock | null) => void;
 }
 
 interface LoadResult {
@@ -33,10 +36,23 @@ interface LoadResult {
     error: string | null;
 }
 
-export const symbols = ["IBM", "AAPL", "GOOGL", "MSFT", "AMZN"];
+const FinanceData: React.FC<FinanceDataProps> = ({
+  refreshVersion,
+  onStockChange
+}) => {
+    const catalog = useStockCatalog(refreshVersion);
+    const [selectedSymbol, setSelectedSymbol] = useState("");
 
-const FinanceData: React.FC<FinanceDataProps> = ({refreshVersion}) => {
-    const [currentSymbol, setCurrentSymbol] = useState(symbols[0]);
+    const selectedStock =
+        catalog.stocks.find(stock => stock.symbol === selectedSymbol)
+        ?? catalog.stocks[0];
+
+    const currentSymbol = selectedStock?.symbol ?? "";
+
+    useEffect(() => {
+        onStockChange?.(selectedStock ?? null);
+    }, [selectedStock, onStockChange]);
+
     const [retryVersion, setRetryVersion] = useState(0);
     const [result, setResult] = useState<LoadResult | null>(null);
 
@@ -44,6 +60,8 @@ const FinanceData: React.FC<FinanceDataProps> = ({refreshVersion}) => {
         `${currentSymbol}:${refreshVersion}:${retryVersion}`;
 
     useEffect(() => {
+        if (!currentSymbol) return;
+
         let cancelled = false;
 
         const loadData = async () => {
@@ -99,20 +117,49 @@ const FinanceData: React.FC<FinanceDataProps> = ({refreshVersion}) => {
 
     const current = result?.key === requestKey ? result : null;
 
+    if (catalog.loading) {
+        return <p role="status">Loading available stocks...</p>;
+    }
+
+    if (catalog.error) {
+        return (
+            <div role="alert">
+                <p>{catalog.error}</p>
+                <button type="button" onClick={catalog.retry}>
+                    Retry stock list
+                </button>
+            </div>
+        );
+    }
+
+    if (!selectedStock) {
+        return (
+            <p role="status">
+                No stocks are currently configured.
+            </p>
+        );
+    }
+
     return (
         <section aria-label="Stock prices">
-            <label htmlFor="symbol-dropdown">Symbol: </label>
+            <label htmlFor="symbol-dropdown">Stock: </label>
             <select
                 id="symbol-dropdown"
                 value={currentSymbol}
-                onChange={event => setCurrentSymbol(event.target.value)}
+                onChange={event => setSelectedSymbol(event.target.value)}
             >
-                {symbols.map(symbol => (
-                    <option key={symbol} value={symbol}>
-                        {symbol}
+                {catalog.stocks.map(stock => (
+                    <option key={stock.symbol} value={stock.symbol}>
+                        {stock.symbol} — {stock.name}
                     </option>
                 ))}
             </select>
+
+            <p className="stock-details">
+                {selectedStock.exchange}
+                {" · "}
+                Prices in {selectedStock.currency}
+            </p>
 
             <ExportButton key={currentSymbol} symbol={currentSymbol} />
 

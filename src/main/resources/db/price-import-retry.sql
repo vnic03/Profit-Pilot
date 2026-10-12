@@ -1,0 +1,2 @@
+ALTER TABLE stock_sync_status
+    ADD COLUMN IF NOT EXISTS retry_allowed BOOLEAN NOT NULL DEFAULT FALSE;

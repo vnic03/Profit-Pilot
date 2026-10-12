@@ -1,6 +1,10 @@
 package org.example.profitpilot.api.alpha_vantage;
 
 import java.sql.SQLException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +34,10 @@ class ApiClientTest {
     void setUp() {
         database = mock(DatabaseService.class);
         cache = mock(AlphaVantageCache.class);
-        client = new ApiClient(database, cache);
+        client = new ApiClient(database, cache, Clock.fixed(
+                    Instant.parse("2026-10-13T12:00:00Z"),
+                    ZoneOffset.UTC
+                    ));
     }
 
     @TempDir
@@ -54,6 +61,8 @@ class ApiClientTest {
         client.syncDailyPrices("IBM");
 
         verify(database).tryStartDailySync("IBM");
+        verify(database).getDataStatus(List.of("IBM"));
+        verify(database, never()).markDailySyncFailed(anyString());
         verifyNoMoreInteractions(database);
         verify(cache, never()).fetchData(anyString());
     }
@@ -75,12 +84,14 @@ class ApiClientTest {
         var order = inOrder(database, cache);
 
         order.verify(cache).isExternalApiEnabled();
+        order.verify(database).getDataStatus(List.of("IBM"));
         order.verify(database).tryStartDailySync("IBM");
         order.verify(cache).fetchData("IBM");
         order.verify(database).insertSharePrice(expectedPrices);
         order.verify(database).markDailySyncSuccessful("IBM");
 
         verify(cache, times(1)).fetchData("IBM");
+        verify(database, never()).markDailySyncFailed(anyString());
     }
 
     @Test
@@ -94,6 +105,7 @@ class ApiClientTest {
         );
 
         verify(database).tryStartDailySync("IBM");
+        verify(database).markDailySyncFailed("IBM");
         verify(database, never()).insertSharePrice(anyList());
         verify(database, never()).markDailySyncSuccessful(anyString());
     }
@@ -111,6 +123,7 @@ class ApiClientTest {
                 () -> client.syncDailyPrices("IBM")
         );
 
+        verify(database).markDailySyncFailed("IBM");
         verify(database, never()).markDailySyncSuccessful(anyString());
     }
 
@@ -209,5 +222,139 @@ class ApiClientTest {
                         100.0, 110.0, 95.0, 105.0, 1000L
                 )
         ));
+    }
+
+    @Test
+    void currentPricesDoNotReserveBudgetOrCallProvider() throws Exception {
+        when(cache.isExternalApiEnabled()).thenReturn(true);
+
+        when(database.getDataStatus(List.of("IBM"))).thenReturn(List.of(
+                new DatabaseService.DataStatus(
+                        "IBM",
+                        100L,
+                        LocalDate.parse("2026-10-12"),
+                        null,
+                        null
+                )
+        ));
+
+        assertEquals(
+                ApiClient.SyncResult.SKIPPED,
+                client.syncDailyPrices("IBM")
+        );
+
+        verify(database, never()).tryStartDailySync(anyString());
+        verify(cache, never()).fetchData(anyString());
+        verify(database, never()).insertSharePrice(anyList());
+    }
+
+    @Test
+    void olderPricesContinueThroughBudgetProtectedImport() throws Exception {
+        allowImport();
+
+        when(database.getDataStatus(List.of("IBM"))).thenReturn(List.of(
+                new DatabaseService.DataStatus(
+                        "IBM",
+                        100L,
+                        LocalDate.parse("2026-10-08"),
+                        null,
+                        null
+                )
+        ));
+
+        when(cache.fetchData("IBM")).thenReturn(validResponse());
+
+        assertEquals(
+                ApiClient.SyncResult.IMPORTED,
+                client.syncDailyPrices("IBM")
+        );
+
+        verify(database).tryStartDailySync("IBM");
+        verify(cache).fetchData("IBM");
+        verify(database).markDailySyncSuccessful("IBM");
+    }
+
+    @Test
+    void holidayDoesNotConsumeRequestBudget() throws Exception {
+        client = new ApiClient(
+                database,
+                cache,
+                Clock.fixed(
+                        Instant.parse("2026-11-27T12:00:00Z"),
+                        ZoneOffset.UTC
+                )
+        );
+
+        when(cache.isExternalApiEnabled()).thenReturn(true);
+
+        when(database.getDataStatus(List.of("IBM"))).thenReturn(List.of(
+                new DatabaseService.DataStatus(
+                        "IBM",
+                        100L,
+                        LocalDate.parse("2026-11-25"),
+                        null,
+                        null
+                )
+        ));
+
+        assertEquals(
+                ApiClient.SyncResult.SKIPPED,
+                client.syncDailyPrices("IBM")
+        );
+
+        verify(database, never()).tryStartDailySync(anyString());
+        verify(cache, never()).fetchData(anyString());
+    }
+
+    @Test
+    void unknownCalendarPreventsReservationAndProviderRequest()
+            throws Exception {
+
+        client = new ApiClient(
+                database,
+                cache,
+                Clock.fixed(
+                        Instant.parse("2029-01-02T12:00:00Z"),
+                        ZoneOffset.UTC
+                )
+        );
+
+        when(cache.isExternalApiEnabled()).thenReturn(true);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> client.syncDailyPrices("IBM")
+        );
+
+        verify(database, never()).tryStartDailySync(anyString());
+        verify(cache, never()).fetchData(anyString());
+    }
+
+    @Test
+    void failureRecordingDoesNotHideOriginalImportError() throws Exception {
+        allowImport();
+
+        var originalFailure =
+                new IllegalStateException("Provider unavailable.");
+
+        var recordingFailure =
+                new SQLException("Could not persist failure.");
+
+        when(cache.fetchData("IBM")).thenThrow(originalFailure);
+
+        doThrow(recordingFailure)
+                .when(database)
+                .markDailySyncFailed("IBM");
+
+        var thrown = assertThrows(
+                IllegalStateException.class,
+                () -> client.syncDailyPrices("IBM")
+        );
+
+        assertSame(originalFailure, thrown);
+        assertEquals(1, thrown.getSuppressed().length);
+        assertSame(recordingFailure, thrown.getSuppressed()[0]);
+
+        verify(database, never()).markDailySyncSuccessful(anyString());
     }
 }

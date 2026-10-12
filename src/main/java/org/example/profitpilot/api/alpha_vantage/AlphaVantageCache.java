@@ -11,6 +11,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.time.Duration;
 
 
 @Component
@@ -35,7 +36,11 @@ public class AlphaVantageCache extends CacheBase<ApiResponse> {
                 "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
                 symbol, apiKey
         );
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(uri)).build();
+        HttpRequest request =
+            HttpRequest.newBuilder()
+            .uri(URI.create(uri))
+            .timeout(Duration.ofSeconds(30))
+            .build();
 
         try {
             HttpResponse<String> response = sendExternalRequest(request);
