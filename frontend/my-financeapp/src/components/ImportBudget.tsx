@@ -1,5 +1,6 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useId, useState} from "react";
 import {getImportBudget} from "../service/financeService";
+import {getNewsBudget} from "../service/newsService";
 
 interface Budget {
     provider: string;
@@ -16,21 +17,37 @@ interface LoadResult {
     error: string | null;
 }
 
-const ImportBudget: React.FC<{refreshVersion: number}> = ({
-    refreshVersion
+interface ImportBudgetProps {
+    refreshVersion: number;
+    provider?: "prices" | "news";
+}
+
+const ImportBudget: React.FC<ImportBudgetProps> = ({
+    refreshVersion,
+    provider = "prices"
 }) => {
+    const titleId = useId();
     const [retryVersion, setRetryVersion] = useState(0);
     const [result, setResult] = useState<LoadResult | null>(null);
 
-    const requestKey = `${refreshVersion}:${retryVersion}`;
+    const requestKey = `${provider}:${refreshVersion}:${retryVersion}`;
+    const title = provider === "prices"
+        ? "Price import budget"
+        : "News request budget";
+    const providerName = provider === "prices"
+        ? "Alpha Vantage"
+        : "Marketaux";
 
     useEffect(() => {
         const controller = new AbortController();
 
         const load = async () => {
             try {
-                const budget: Budget =
-                    await getImportBudget(controller.signal);
+                const loader = provider === "prices"
+                    ? getImportBudget
+                    : getNewsBudget;
+
+                const budget: Budget = await loader(controller.signal);
 
                 if (!controller.signal.aborted) {
                     setResult({
@@ -46,7 +63,7 @@ const ImportBudget: React.FC<{refreshVersion: number}> = ({
                         key: requestKey,
                         budget: null,
                         loadedAt: null,
-                        error: "Could not load the import budget."
+                        error: "Could not load the request budget."
                     });
                 }
             }
@@ -55,33 +72,31 @@ const ImportBudget: React.FC<{refreshVersion: number}> = ({
         void load();
 
         return () => controller.abort();
-    }, [requestKey]);
+    }, [provider, requestKey]);
 
     const current = result?.key === requestKey ? result : null;
     const budget = current?.budget;
 
-    const reload = () => setRetryVersion(value => value + 1);
-
     return (
-        <section className="import-budget" aria-labelledby="budget-title">
+        <section className="import-budget" aria-labelledby={titleId}>
             <div className="budget-heading">
                 <div>
-                    <h3 id="budget-title">Price import budget</h3>
-                    <p>Alpha Vantage · Shared across all tracked stocks</p>
+                    <h3 id={titleId}>{title}</h3>
+                    <p>
+                        {providerName} · Shared across all tracked stocks
+                    </p>
                 </div>
 
                 <button
                     type="button"
-                    onClick={reload}
+                    onClick={() => setRetryVersion(value => value + 1)}
                     disabled={!current}
                 >
-                    Refresh budget
+                    {current?.error ? "Retry budget" : "Refresh budget"}
                 </button>
             </div>
 
-            {!current && (
-                <p role="status">Loading import budget...</p>
-            )}
+            {!current && <p role="status">Loading budget...</p>}
 
             {current?.error && (
                 <p role="alert">{current.error}</p>
@@ -94,9 +109,7 @@ const ImportBudget: React.FC<{refreshVersion: number}> = ({
                             <span className="budget-value">
                                 {budget.remainingRequests}
                             </span>
-                            <span className="budget-label">
-                                Available slots
-                            </span>
+                            <span className="budget-label">Available</span>
                         </div>
 
                         <div>
@@ -126,22 +139,29 @@ const ImportBudget: React.FC<{refreshVersion: number}> = ({
                             budget.reservedRequests,
                             budget.requestLimit
                         )}
-                        aria-label="Reserved import slots"
+                        aria-label={`${providerName} reserved request slots`}
                     >
                         {budget.reservedRequests} of {budget.requestLimit}
                     </meter>
 
                     {budget.remainingRequests === 0 && (
                         <p className="budget-notice" role="status">
-                            No import slots are currently available.
-                            Slots become available as reservations
-                            leave the rolling 24-hour window.
+                            No request slots are currently available.
+                            Slots become available as reservations leave
+                            the rolling 24-hour window.
                         </p>
                     )}
 
                     <p className="budget-explanation">
-                        Failed or interrupted imports may retain a reservation.
-                        Requests made outside Profit Pilot are not included.
+                        {provider === "news"
+                            ? "Cached articles do not require a new provider request. "
+                            : "Current stocks are skipped without a provider request. "}
+                        Failed requests may retain a reservation.
+                        Requests outside Profit Pilot are not included.
+                    </p>
+
+                    <p className="budget-explanation">
+                        Refreshing this budget does not contact the provider.
                     </p>
 
                     {current?.loadedAt && (

@@ -21,7 +21,7 @@ jest.mock("./financeService", () => ({
     getMacdSeries: jest.fn()
 }));
 
-jest.mock("../components/charts/prototype/prototype", () => ({
+jest.mock("../components/charts/stock-chart/StockChart.tsx", () => ({
     __esModule: true,
     default: ({symbol}: {symbol: string}) => (
         <div>Chart for {symbol}</div>

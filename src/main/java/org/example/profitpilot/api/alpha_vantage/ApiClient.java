@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.time.LocalDate;
 
 import org.example.profitpilot.database.ARFFConverter;
 import org.example.profitpilot.database.DatabaseService;
@@ -23,6 +24,7 @@ public class ApiClient {
 
     public enum SyncResult {
         IMPORTED,
+        WAITING_FOR_DATA,
         SKIPPED,
         DISABLED
     }
@@ -134,6 +136,28 @@ public class ApiClient {
                 );
             }
 
+            LocalDate latestResponseDate = data.timeSeries()
+                    .keySet()
+                    .stream()
+                    .map(LocalDate::parse)
+                    .max(LocalDate::compareTo)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Provider response contains no price dates."
+                    ));
+
+            var responseAssessment = PriceFreshness.assess(
+                    latestResponseDate,
+                    clock.instant()
+            );
+
+            if (responseAssessment.status()
+                    == PriceFreshness.Status.FUTURE_DATE) {
+                throw new IllegalStateException(
+                        "Provider returned a future price date for "
+                                + normalizedSymbol + ": " + latestResponseDate
+                );
+            }
+
             List<DatabaseService.SharePrice> sharePrices = new ArrayList<>();
 
             data.timeSeries().forEach((date, dailyData) ->
@@ -149,6 +173,23 @@ public class ApiClient {
             );
 
             dbService.insertSharePrice(sharePrices);
+
+            if (latestResponseDate.isBefore(freshness.referenceDate())) {
+                dbService.markDailySyncFailed(normalizedSymbol);
+
+                logger.info(
+                        "Waiting for current provider data for {}: "
+                                + "latest response date {}, required reference {}. "
+                                + "Received prices were saved. "
+                                + "A later run may retry within the existing limits.",
+                        normalizedSymbol,
+                        latestResponseDate,
+                        freshness.referenceDate()
+                );
+
+                return SyncResult.WAITING_FOR_DATA;
+            }
+
             dbService.markDailySyncSuccessful(normalizedSymbol);
 
             logger.info(

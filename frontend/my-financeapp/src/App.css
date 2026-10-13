@@ -480,3 +480,65 @@
     padding: 12px;
   }
 }
+
+.app-main button,
+.app-main select,
+.app-main input:not([type="range"]) {
+  min-height: 44px;
+}
+
+.app-main button {
+  white-space: normal;
+}
+
+.dashboard-panel,
+.page-header,
+.stock-details {
+  overflow-wrap: anywhere;
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+@media (max-width: 600px) {
+  .app-main {
+    padding: 24px 12px 16px;
+  }
+
+  .dashboard-panel {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .page-header {
+    gap: 18px;
+  }
+
+  .refresh-controls,
+  .refresh-controls .primary-button {
+    width: 100%;
+  }
+
+  .app-main #symbol-dropdown {
+    display: block;
+    width: 100%;
+    margin: 8px 0 14px;
+  }
+
+  .company-news-heading button,
+  .budget-heading button {
+    width: 100%;
+  }
+
+  .news-card {
+    padding: 16px;
+  }
+
+  .subtle-badge {
+    white-space: normal;
+  }
+}

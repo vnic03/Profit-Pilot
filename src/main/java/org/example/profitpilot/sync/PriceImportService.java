@@ -57,20 +57,21 @@ public class PriceImportService {
             RunStatus status,
             int imported,
             int skipped,
-            int failed) {
+            int failed,
+            int waiting) {
     }
 
     public ImportReport runConfiguredImport() {
         if (!running.compareAndSet(false, true)) {
             return new ImportReport(
-                    RunStatus.ALREADY_RUNNING, 0, 0, 0
+                    RunStatus.ALREADY_RUNNING, 0, 0, 0, 0
             );
         }
 
         try {
             if (!apiClient.isImportEnabled()) {
                 return new ImportReport(
-                        RunStatus.DISABLED, 0, 0, 0
+                        RunStatus.DISABLED, 0, 0, 0, 0
                 );
             }
 
@@ -79,6 +80,7 @@ public class PriceImportService {
             int imported = 0;
             int skipped = 0;
             int failed = 0;
+            int waiting = 0;
 
             logger.info("Starting price import for {}.", symbols);
 
@@ -86,9 +88,7 @@ public class PriceImportService {
                 if (Thread.currentThread().isInterrupted()) {
                     return new ImportReport(
                             RunStatus.INTERRUPTED,
-                            imported,
-                            skipped,
-                            failed
+                            imported, skipped, failed, waiting
                     );
                 }
 
@@ -100,9 +100,7 @@ public class PriceImportService {
 
                         return new ImportReport(
                                 RunStatus.INTERRUPTED,
-                                imported,
-                                skipped,
-                                failed
+                                imported, skipped, failed, waiting
                         );
                     }
                 }
@@ -115,13 +113,12 @@ public class PriceImportService {
 
                     switch (result) {
                         case IMPORTED -> imported++;
+                        case WAITING_FOR_DATA -> waiting++;
                         case SKIPPED -> skipped++;
                         case DISABLED -> {
                             return new ImportReport(
                                     RunStatus.DISABLED,
-                                    imported,
-                                    skipped,
-                                    failed
+                                    imported, skipped, failed, waiting
                             );
                         }
                     }
@@ -141,7 +138,9 @@ public class PriceImportService {
                     ? RunStatus.INTERRUPTED
                     : RunStatus.COMPLETED;
 
-            return new ImportReport(status, imported, skipped, failed);
+            return new ImportReport(
+                    status, imported, skipped, failed, waiting
+            );
 
         } finally {
             running.set(false);

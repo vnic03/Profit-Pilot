@@ -32,7 +32,7 @@ function App() {
         const loadMovers = async () => {
             try {
                 const data: WinnersAndLosers =
-                    await getWinnersAndLosers(amount);
+                    await getWinnersAndLosers(amount + 1);
 
                 if (!cancelled) {
                     setResult({key: requestKey, data, error: null});
@@ -147,7 +147,14 @@ function App() {
                             </p>
                         ) : (
                             <MarketMovers
-                                movers={current.data}
+                                movers={{
+                                    winners: current.data.winners.slice(0, amount),
+                                    losers: current.data.losers.slice(0, amount)
+                                }}
+                                hasMore={
+                                    current.data.winners.length > amount
+                                    || current.data.losers.length > amount
+                                }
                                 handleLoadMore={() => setAmount(value => value + 5)}
                             />
                         )

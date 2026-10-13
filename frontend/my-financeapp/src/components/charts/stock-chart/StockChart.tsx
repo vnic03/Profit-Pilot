@@ -1,14 +1,33 @@
-import React, {useState, useCallback, useMemo} from "react";
-import {LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Brush,
-  ReferenceLine, ComposedChart, Bar} from 'recharts';
-import { FaInfoCircle } from 'react-icons/fa';
-import "./protoypeStyles.scss";
-import descriptions from "./descriptions";
-import {FinancialSymbolData} from "../../../service/FinanceData";
-import {getSMA, getEMA, getRSI} from "../../../service/financeService";
-import {useIndicator} from "../../../service/useIndicator";
+import React, {useCallback, useMemo, useState} from "react";
 
+import {
+    Bar,
+    Brush,
+    CartesianGrid,
+    ComposedChart,
+    Legend,
+    Line,
+    LineChart,
+    ReferenceLine,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
+} from "recharts";
+
+import "./StockChart.scss";
+
+import ChartControls from "./ChartControls";
+import type {SeriesKey} from "./ChartControls";
+import type {FinancialSymbolData} from "../../../service/FinanceData";
+
+import {
+    getEMA,
+    getRSI,
+    getSMA
+} from "../../../service/financeService";
+
+import {useIndicator} from "../../../service/useIndicator";
 
 interface StockChartProps {
     symbol: string;
@@ -17,13 +36,11 @@ interface StockChartProps {
 
 interface ChartData {
     date: string;
-
     close: number;
     open?: number;
     low?: number;
     high?: number;
     volume?: number;
-
     SMA?: number;
     EMA?: number;
     RSI?: number;
@@ -32,22 +49,12 @@ interface ChartData {
     histogram?: number;
 }
 
-interface Description {
-    close: string[];
-    high: string[];
-    low: string[];
-    open: string[];
-    volume: string[];
-    SMA: string[];
-    EMA: string[];
-    RSI: string[];
-    MACD: string[];
-}
+type HistoryRange = "20" | "60" | "all";
 
-const MIN_PERIOD: number = 1;
-const MAX_PERIOD: number = 50;
-
-const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }) => {
+const StockChart: React.FC<StockChartProps> = React.memo(({
+    symbol,
+    symbolData
+}) => {
     const [smaPeriod, setSmaPeriod] = useState(14);
     const [emaPeriod, setEmaPeriod] = useState(14);
     const [rsiPeriod, setRsiPeriod] = useState(14);
@@ -56,26 +63,24 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
     const ema = useIndicator(symbol, emaPeriod, getEMA);
     const rsi = useIndicator(symbol, rsiPeriod, getRSI);
 
-    const [visibleData, setVisibleData] = useState({
+    const [range, setRange] = useState<HistoryRange>("all");
+    const [chartVersion, setChartVersion] = useState(0);
+
+    const [visibleData, setVisibleData] = useState<
+        Record<SeriesKey, boolean>
+    >({
         close: true,
-        high: true,
-        low: true,
-        open: true,
+        high: false,
+        low: false,
+        open: false,
         volume: false,
         SMA: false,
         EMA: false,
         RSI: false,
-        MACD: false,
-    })
-
-    const [showModal, setShowModal] = useState(false);
-    const [modalContent, setModalContent] = useState("");
+        MACD: false
+    });
 
     const data: ChartData[] = useMemo(() => {
-        if (!symbolData) {
-            return [];
-        }
-
         return Object.keys(symbolData.closePrices)
             .sort()
             .map(date => ({
@@ -90,39 +95,31 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                 RSI: rsi.data[date],
                 MACD: symbolData.macd?.[date],
                 signal: symbolData.macdSignal?.[date],
-                histogram: symbolData.macdHistogram?.[date],
+                histogram: symbolData.macdHistogram?.[date]
             }));
     }, [symbolData, sma.data, ema.data, rsi.data]);
 
+    const chartData = range === "all"
+        ? data
+        : data.slice(-Number(range));
+
+    const anySeriesVisible = Object.values(visibleData).some(Boolean);
 
     const firstDate = data[0]?.date;
     const latestDate = data[data.length - 1]?.date;
 
-    const toggleDataSeries = useCallback((name: keyof typeof visibleData) => {
-        setVisibleData(state => ({
-            ...state,
-            [name]: !state[name]
+    const chartKey = `${symbol}:${range}:${chartVersion}`;
+    const syncId = `stock-${symbol}`;
+
+    const toggleDataSeries = useCallback((name: SeriesKey) => {
+        setVisibleData(current => ({
+            ...current,
+            [name]: !current[name]
         }));
     }, []);
 
-    const handleOpenModal = useCallback((key: keyof Description) => {
-        setModalContent(descriptions[key].join('\n'));
-        setShowModal(true);
-    }, []);
-
-    const renderModal = showModal && (
-        <div className="modal-backdrop">
-            <div className="modal-content">
-                <p>{modalContent}</p>
-                <button onClick={() => setShowModal(false)}>Close</button>
-            </div>
-        </div>
-    );
-
     return (
-        <div className={"chart-container"}>
-            {renderModal}
-
+        <div className="chart-container">
             <div className="data-status">
                 <h2>{symbol}</h2>
 
@@ -130,85 +127,87 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                     <>
                         <p>
                             Latest stored close:{" "}
-                            <time dateTime={latestDate}>{latestDate}</time>
+                            <time dateTime={latestDate}>
+                                {latestDate}
+                            </time>
                         </p>
+
                         <p>
                             {data.length} stored trading days
                             {" · "}
                             {firstDate} to {latestDate}
                         </p>
-                        <p>Daily closing prices. Not live quotes.</p>
+
+                        <p>Daily prices. Not live quotes.</p>
                     </>
                 ) : (
                     <p>No stored prices available for this symbol.</p>
                 )}
             </div>
 
-            <button onClick={() => toggleDataSeries('volume')}>Volume</button>
-            <button onClick={() => handleOpenModal('volume')}>
-                <FaInfoCircle className="info-icon"/>
-            </button>
+            <ChartControls
+                visible={visibleData}
+                onToggle={toggleDataSeries}
+                smaPeriod={smaPeriod}
+                emaPeriod={emaPeriod}
+                rsiPeriod={rsiPeriod}
+                onSmaChange={setSmaPeriod}
+                onEmaChange={setEmaPeriod}
+                onRsiChange={setRsiPeriod}
+            />
 
-            <button onClick={() => toggleDataSeries('MACD')}>MACD</button>
-            <button onClick={() => handleOpenModal('MACD')}>
-                <FaInfoCircle className="info-icon"/>
-            </button>
+            <div className="chart-range-controls">
+                <label htmlFor={`chart-range-${symbol}`}>
+                    Show history
+                </label>
 
-            <button onClick={() => toggleDataSeries('SMA')}>SMA</button>
-            <button onClick={() => handleOpenModal('SMA')}>
-                <FaInfoCircle className="info-icon"/>
-            </button>
+                <select
+                    id={`chart-range-${symbol}`}
+                    value={range}
+                    onChange={event => {
+                        setRange(event.target.value as HistoryRange);
+                        setChartVersion(value => value + 1);
+                    }}
+                >
+                    <option value="20">
+                        Latest 20 stored sessions
+                    </option>
+                    <option value="60">
+                        Latest 60 stored sessions
+                    </option>
+                    <option value="all">
+                        All stored sessions
+                    </option>
+                </select>
 
-            <button onClick={() => toggleDataSeries('RSI')}>RSI</button>
-            <button onClick={() => handleOpenModal('RSI')}>
-                <FaInfoCircle className="info-icon"/>
-            </button>
-
-            <button onClick={() => toggleDataSeries('EMA')}>EMA</button>
-            <button onClick={() => handleOpenModal('EMA')}>
-                <FaInfoCircle className="info-icon"/>
-            </button>
-
-            <div className="indicator-settings">
-                {visibleData.SMA && (
-                    <div className={"setting"}>
-                        <label>SMA Period:</label>
-                        <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={smaPeriod}
-                               onChange={(e) => setSmaPeriod(Number(e.target.value))}
-                        />
-                        <input type="number" min={MIN_PERIOD} max={MAX_PERIOD} step={1}
-                                value={smaPeriod} onChange={(e) => setSmaPeriod(Number(e.target.value))}
-                                className="manual-input"
-                        />
-                    </div>
-                )}
-
-                {visibleData.EMA && (
-                    <div className="setting">
-                        <label>EMA Period:</label>
-                        <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={emaPeriod}
-                               onChange={(e) => setEmaPeriod(Number(e.target.value))}
-                        />
-                        <input type="number" min={MIN_PERIOD} max={MAX_PERIOD} step={1}
-                                value={emaPeriod} onChange={(e) => setEmaPeriod(Number(e.target.value))}
-                                className="manual-input"
-                        />
-                    </div>
-                )}
-
-                {visibleData.RSI && (
-                    <div className="setting">
-                        <label>RSI Period:</label>
-                        <input type="range" min={MIN_PERIOD} max={MAX_PERIOD} value={rsiPeriod}
-                               onChange={(e) => setRsiPeriod(Number(e.target.value))}
-                        />
-                        <input type="number" min={MIN_PERIOD} max={MAX_PERIOD} step={1}
-                                value={rsiPeriod} onChange={(e) => setRsiPeriod(Number(e.target.value))}
-                                className="manual-input"
-                        />
-                    </div>
-                )}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setRange("all");
+                        setChartVersion(value => value + 1);
+                    }}
+                >
+                    Reset view
+                </button>
             </div>
+
+            <p className="chart-range-description">
+                Selected history: {chartData.length} stored sessions
+                {chartData.length > 0 && (
+                    <>
+                        {" · "}
+                        {chartData[0].date} to{" "}
+                        {chartData[chartData.length - 1].date}
+                    </>
+                )}
+                . Drag the handles below the chart to narrow the view.
+            </p>
+
+            {!anySeriesVisible && (
+                <p role="status">
+                    Choose a price series or indicator to display.
+                </p>
+            )}
 
             {[
                 {name: "SMA", visible: visibleData.SMA, state: sma},
@@ -226,7 +225,10 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                                 <p>{name}: {state.error}</p>
 
                                 {state.canRetry && (
-                                    <button type="button" onClick={state.retry}>
+                                    <button
+                                        type="button"
+                                        onClick={state.retry}
+                                    >
                                         Retry {name}
                                     </button>
                                 )}
@@ -243,14 +245,22 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                 )
             ))}
 
-            <ResponsiveContainer width="100%" height={500}>
+            <ResponsiveContainer width="100%" height={360}>
                 <LineChart
-                    data={data}
-                    syncId={`stock-${symbol}`}
-                    margin={{top: 20, right: 30, left: 20, bottom: 5}}
+                    key={chartKey}
+                    data={chartData}
+                    syncId={syncId}
+                    margin={{top: 12, right: 8, left: 0, bottom: 5}}
+                    accessibilityLayer
                 >
                     <CartesianGrid strokeDasharray="3 3"/>
-                    <XAxis dataKey="date"/>
+
+                    <XAxis
+                        dataKey="date"
+                        minTickGap={28}
+                        tick={{fontSize: 11}}
+                        tickFormatter={(value: string) => value.slice(5)}
+                    />
 
                     <YAxis
                         yAxisId="price"
@@ -262,7 +272,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         yAxisId="volume"
                         orientation="right"
                         hide={!visibleData.volume}
-                        tickFormatter={(value: number) => `${(value / 1e6).toFixed(2)}M`}
+                        tickFormatter={(value: number) =>
+                            `${(value / 1e6).toFixed(2)}M`
+                        }
                     />
 
                     <Tooltip/>
@@ -276,7 +288,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         name="Close"
                         dot={false}
                         hide={!visibleData.close}
+                        isAnimationActive={false}
                     />
+
                     <Line
                         yAxisId="price"
                         type="linear"
@@ -285,7 +299,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         name="High"
                         dot={false}
                         hide={!visibleData.high}
+                        isAnimationActive={false}
                     />
+
                     <Line
                         yAxisId="price"
                         type="linear"
@@ -294,7 +310,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         name="Low"
                         dot={false}
                         hide={!visibleData.low}
+                        isAnimationActive={false}
                     />
+
                     <Line
                         yAxisId="price"
                         type="linear"
@@ -303,7 +321,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         name="Open"
                         dot={false}
                         hide={!visibleData.open}
+                        isAnimationActive={false}
                     />
+
                     <Line
                         yAxisId="volume"
                         type="linear"
@@ -312,7 +332,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         name="Volume"
                         dot={false}
                         hide={!visibleData.volume}
+                        isAnimationActive={false}
                     />
+
                     <Line
                         yAxisId="price"
                         type="linear"
@@ -322,7 +344,9 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         dot={false}
                         connectNulls={false}
                         hide={!visibleData.SMA}
+                        isAnimationActive={false}
                     />
+
                     <Line
                         yAxisId="price"
                         type="linear"
@@ -332,9 +356,14 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                         dot={false}
                         connectNulls={false}
                         hide={!visibleData.EMA}
+                        isAnimationActive={false}
                     />
 
-                    <Brush dataKey="date" height={30} stroke="#8884d8"/>
+                    <Brush
+                        dataKey="date"
+                        height={30}
+                        stroke="#8884d8"
+                    />
                 </LineChart>
             </ResponsiveContainer>
 
@@ -344,16 +373,28 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
 
                     <ResponsiveContainer width="100%" height={220}>
                         <LineChart
-                            data={data}
-                            syncId={`stock-${symbol}`}
-                            margin={{top: 10, right: 30, left: 20, bottom: 5}}
+                            key={chartKey}
+                            data={chartData}
+                            syncId={syncId}
+                            margin={{top: 12, right: 8, left: 0, bottom: 5}}
+                            accessibilityLayer
                         >
                             <CartesianGrid strokeDasharray="3 3"/>
-                            <XAxis dataKey="date"/>
+
+                            <XAxis
+                                dataKey="date"
+                                minTickGap={28}
+                                tick={{fontSize: 11}}
+                                tickFormatter={(value: string) =>
+                                    value.slice(5)
+                                }
+                            />
+
                             <YAxis
                                 domain={[0, 100]}
                                 ticks={[0, 30, 50, 70, 100]}
                             />
+
                             <Tooltip/>
 
                             <ReferenceLine
@@ -361,6 +402,7 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                                 stroke="#888888"
                                 strokeDasharray="4 4"
                             />
+
                             <ReferenceLine
                                 y={70}
                                 stroke="#888888"
@@ -374,6 +416,7 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
                                 name={`RSI (${rsiPeriod})`}
                                 dot={false}
                                 connectNulls={false}
+                                isAnimationActive={false}
                             />
                         </LineChart>
                     </ResponsiveContainer>
@@ -386,16 +429,28 @@ const StockChart: React.FC<StockChartProps> = React.memo(({ symbol, symbolData }
 
                     <ResponsiveContainer width="100%" height={250}>
                         <ComposedChart
-                            data={data}
-                            syncId={`stock-${symbol}`}
-                            margin={{top: 10, right: 30, left: 20, bottom: 5}}
+                            key={chartKey}
+                            data={chartData}
+                            syncId={syncId}
+                            margin={{top: 12, right: 8, left: 0, bottom: 5}}
+                            accessibilityLayer
                         >
                             <CartesianGrid strokeDasharray="3 3"/>
-                            <XAxis dataKey="date"/>
+
+                            <XAxis
+                                dataKey="date"
+                                minTickGap={28}
+                                tick={{fontSize: 11}}
+                                tickFormatter={(value: string) =>
+                                    value.slice(5)
+                                }
+                            />
 
                             <YAxis
                                 domain={["auto", "auto"]}
-                                tickFormatter={(value: number) => value.toFixed(2)}
+                                tickFormatter={(value: number) =>
+                                    value.toFixed(2)
+                                }
                             />
 
                             <Tooltip/>

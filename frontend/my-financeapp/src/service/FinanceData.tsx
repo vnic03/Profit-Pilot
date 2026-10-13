@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from "react";
 import { getClosePrices, getMacdSeries, getHigh, getOpen,
     getLow, getVolume } from "./financeService";
-import StockChart from "../components/charts/prototype/prototype";
+import StockChart from "../components/charts/stock-chart/StockChart";
 import ExportButton from "../components/ExportButton";
 import {useStockCatalog} from "./useStockCatalog";
 import type {Stock} from "./useStockCatalog";

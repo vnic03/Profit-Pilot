@@ -76,7 +76,7 @@ class ApiClientTest {
 
         var expectedPrices = List.of(
                 new DatabaseService.SharePrice(
-                        "IBM", "2026-10-05",
+                        "IBM", "2026-10-12",
                         100.0, 110.0, 95.0, 105.0, 1000L
                 )
         );
@@ -217,7 +217,7 @@ class ApiClientTest {
 
     private ApiResponse validResponse() {
         return new ApiResponse(Map.of(
-                "2026-10-05",
+                "2026-10-12",
                 new ApiResponse.DailyData(
                         100.0, 110.0, 95.0, 105.0, 1000L
                 )
@@ -356,5 +356,58 @@ class ApiClientTest {
         assertSame(recordingFailure, thrown.getSuppressed()[0]);
 
         verify(database, never()).markDailySyncSuccessful(anyString());
+    }
+
+    @Test
+    void outdatedResponseIsSavedButAllowsALaterRetry() throws Exception {
+        allowImport();
+
+        when(cache.fetchData("IBM")).thenReturn(new ApiResponse(Map.of(
+                "2026-10-09",
+                new ApiResponse.DailyData(
+                        100.0, 110.0, 95.0, 105.0, 1000L
+                )
+        )));
+
+        assertEquals(
+                ApiClient.SyncResult.WAITING_FOR_DATA,
+                client.syncDailyPrices("IBM")
+        );
+
+        var order = inOrder(database);
+
+        order.verify(database).getDataStatus(List.of("IBM"));
+        order.verify(database).tryStartDailySync("IBM");
+        order.verify(database).insertSharePrice(List.of(
+                new DatabaseService.SharePrice(
+                        "IBM", "2026-10-09",
+                        100.0, 110.0, 95.0, 105.0, 1000L
+                )
+        ));
+        order.verify(database).markDailySyncFailed("IBM");
+
+        verify(database, never()).markDailySyncSuccessful(anyString());
+        verify(cache, times(1)).fetchData("IBM");
+    }
+
+    @Test
+    void futureResponseIsRejectedBeforeSaving() throws Exception {
+        allowImport();
+
+        when(cache.fetchData("IBM")).thenReturn(new ApiResponse(Map.of(
+                "2026-10-14",
+                new ApiResponse.DailyData(
+                        100.0, 110.0, 95.0, 105.0, 1000L
+                )
+        )));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> client.syncDailyPrices("IBM")
+        );
+
+        verify(database, never()).insertSharePrice(anyList());
+        verify(database, never()).markDailySyncSuccessful(anyString());
+        verify(database).markDailySyncFailed("IBM");
     }
 }

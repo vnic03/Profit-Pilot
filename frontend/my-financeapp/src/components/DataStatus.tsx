@@ -165,7 +165,12 @@ const DataStatus: React.FC<{refreshVersion: number}> = ({
                 current.rows.length === 0 ? (
                     <p>No tracked stocks available.</p>
                 ) : (
-                    <div style={{overflowX: "auto"}}>
+                    <div
+                        className="table-scroll"
+                        role="region"
+                        aria-label="Stored price coverage label"
+                        tabIndex={0}
+                    >
                         <table>
                             <thead>
                                 <tr>

@@ -54,5 +54,5 @@ test("reload refreshes prices, data status and market movers", async () => {
 
     expect(screen.getByTestId("price-refresh")).toHaveTextContent("1");
     expect(screen.getByTestId("status-refresh")).toHaveTextContent("1");
-    expect(loadMovers).toHaveBeenLastCalledWith(5);
+    expect(loadMovers).toHaveBeenLastCalledWith(6);
 });

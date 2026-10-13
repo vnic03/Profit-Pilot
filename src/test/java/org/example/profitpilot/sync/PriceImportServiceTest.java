@@ -155,4 +155,34 @@ class PriceImportServiceTest {
         assertEquals(1, imports.runConfiguredImport().imported());
         verify(client, times(1)).syncDailyPrices("IBM");
     }
+
+    @Test
+    void waitingForProviderDataDoesNotPreventNextImport() throws Exception {
+        when(client.isImportEnabled()).thenReturn(true);
+
+        when(client.syncDailyPrices("IBM"))
+                .thenReturn(ApiClient.SyncResult.WAITING_FOR_DATA);
+
+        when(client.syncDailyPrices("AAPL"))
+                .thenReturn(ApiClient.SyncResult.IMPORTED);
+
+        var report = service("IBM,AAPL").runConfiguredImport();
+
+        assertEquals(
+                PriceImportService.RunStatus.COMPLETED,
+                report.status()
+        );
+
+        assertEquals(1, report.imported());
+        assertEquals(1, report.waiting());
+        assertEquals(0, report.failed());
+        assertEquals(0, report.skipped());
+
+        var order = inOrder(client, pause);
+
+        order.verify(client).isImportEnabled();
+        order.verify(client).syncDailyPrices("IBM");
+        order.verify(pause).await(15000);
+        order.verify(client).syncDailyPrices("AAPL");
+    }
 }

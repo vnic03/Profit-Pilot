@@ -1,0 +1,172 @@
+.chart-container {
+  min-width: 0;
+
+  .recharts-default-tooltip {
+    border: 1px solid var(--border) !important;
+    border-radius: 8px;
+    background: #fff !important;
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  .recharts-legend-wrapper {
+    font-size: 12px;
+  }
+
+  .recharts-legend-item {
+    margin-right: 12px;
+  }
+}
+
+.chart-controls {
+  margin: 20px 0;
+}
+
+.chart-control-group {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+
+  legend {
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+}
+
+.chart-toggle-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-main .chart-toggle-list button {
+  min-height: 44px;
+
+  span {
+    margin-left: 6px;
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  &[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+
+  &[aria-pressed="true"]:hover {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+  }
+}
+
+.period-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.period-control {
+  display: grid;
+  grid-template-columns: 100px minmax(70px, 1fr) 84px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8faf7;
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  small {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  input[aria-invalid="true"] {
+    border-color: #a6483e;
+  }
+}
+
+.chart-help {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  dl {
+    margin: 16px 0 0;
+    font-size: 13px;
+  }
+
+  dt {
+    margin-top: 12px;
+    font-weight: 700;
+  }
+
+  dd {
+    margin: 4px 0 0;
+    color: var(--muted);
+  }
+}
+
+.chart-range-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.app-main .chart-range-controls select {
+  margin: 0;
+}
+
+.chart-range-description {
+  margin: 12px 0 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .period-control {
+    grid-template-columns: minmax(0, 1fr) 84px;
+
+    label {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .chart-range-controls {
+    align-items: stretch;
+
+    label {
+      width: 100%;
+    }
+
+    select {
+      width: 100%;
+    }
+  }
+}

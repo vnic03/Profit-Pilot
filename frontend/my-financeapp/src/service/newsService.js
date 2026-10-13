@@ -11,3 +11,12 @@ export async function getNews(symbol, signal) {
 
     return response.data;
 }
+
+export async function getNewsBudget(signal) {
+    const response = await axios.get(`${baseUrl}/budget`, {
+        signal,
+        timeout: 15000
+    });
+
+    return response.data;
+}
