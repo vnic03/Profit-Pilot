@@ -42,6 +42,36 @@ public final class StockCatalog {
                     "Amazon",
                     "NASDAQ",
                     "USD"
+            ),
+            new Stock(
+                    "NVDA",
+                    "NVIDIA",
+                    "NASDAQ",
+                    "USD"
+            ),
+            new Stock(
+                    "JPM",
+                    "JPMorgan Chase",
+                    "NYSE",
+                    "USD"
+            ),
+            new Stock(
+                    "JNJ",
+                    "Johnson & Johnson",
+                    "NYSE",
+                    "USD"
+            ),
+            new Stock(
+                    "KO",
+                    "Coca-Cola",
+                    "NYSE",
+                    "USD"
+            ),
+            new Stock(
+                    "XOM",
+                    "ExxonMobil",
+                    "NYSE",
+                    "USD"
             )
     );
 
