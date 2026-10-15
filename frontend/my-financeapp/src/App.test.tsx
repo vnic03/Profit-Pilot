@@ -1,32 +1,30 @@
 import React from "react";
 import {fireEvent, render, screen, waitFor} from "@testing-library/react";
+import {beforeEach, expect, test, vi, type Mock} from "vitest";
 import App from "./App";
 import {getWinnersAndLosers} from "./service/financeService";
 
-jest.mock("./service/financeService", () => ({
-    getWinnersAndLosers: jest.fn()
+vi.mock("./service/financeService", () => ({
+    getWinnersAndLosers: vi.fn()
 }));
 
-jest.mock("./service/FinanceData", () => ({
-    __esModule: true,
+vi.mock("./service/FinanceData", () => ({
     default: ({refreshVersion}: {refreshVersion: number}) => (
         <div data-testid="price-refresh">{refreshVersion}</div>
     )
 }));
 
-jest.mock("./components/DataStatus", () => ({
-    __esModule: true,
+vi.mock("./components/DataStatus", () => ({
     default: ({refreshVersion}: {refreshVersion: number}) => (
         <div data-testid="status-refresh">{refreshVersion}</div>
     )
 }));
 
-jest.mock("./components/news/News", () => ({
-    __esModule: true,
+vi.mock("./components/news/News", () => ({
     default: () => <div>News placeholder</div>
 }));
 
-const loadMovers = getWinnersAndLosers as jest.Mock;
+const loadMovers = getWinnersAndLosers as Mock;
 
 beforeEach(() => {
     loadMovers.mockReset();

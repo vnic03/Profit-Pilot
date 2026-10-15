@@ -26,6 +26,7 @@ public class ApiClient {
         IMPORTED,
         WAITING_FOR_DATA,
         SKIPPED,
+        BUDGET_OR_COOLDOWN,
         DISABLED
     }
 
@@ -122,7 +123,7 @@ public class ApiClient {
                         + "or request budget exhausted",
                     normalizedSymbol
             );
-            return SyncResult.SKIPPED;
+            return SyncResult.BUDGET_OR_COOLDOWN;
         }
 
         try {

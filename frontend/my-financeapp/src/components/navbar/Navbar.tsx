@@ -26,7 +26,19 @@ const Navbar: React.FC = () => (
                 Research based on stored closing prices.
                 Check each stock's latest price date.
             </p>
+
+            <p className="sidebar-credit">
+                Built by{" "}
+                <a
+                    href="https://github.com/vnic03"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Nico (@vnic03)
+                </a>
+            </p>
         </div>
+
     </aside>
 );
 

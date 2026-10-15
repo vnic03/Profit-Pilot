@@ -1,7 +1,21 @@
 import {act, renderHook} from "@testing-library/react";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    test,
+    vi
+} from "vitest";
 import {useIndicator} from "./useIndicator";
 
 type Values = Record<string, number>;
+
+type FetchIndicator = (
+    symbol: string,
+    period: number,
+    signal?: AbortSignal
+) => Promise<Values>;
 
 function deferred<T>() {
     let resolve!: (value: T) => void;
@@ -15,22 +29,22 @@ function deferred<T>() {
 
 async function startRequest() {
     await act(async () => {
-        jest.advanceTimersByTime(250);
+        await vi.advanceTimersByTimeAsync(250);
     });
 }
 
 describe("useIndicator", () => {
     beforeEach(() => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
     });
 
     afterEach(() => {
-        jest.clearAllTimers();
-        jest.useRealTimers();
+        vi.clearAllTimers();
+        vi.useRealTimers();
     });
 
     test("invalid period does not trigger a request", async () => {
-        const fetcher = jest.fn().mockResolvedValue({});
+        const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({});
 
         const {result} = renderHook(() =>
             useIndicator("IBM", 0, fetcher)
@@ -47,7 +61,7 @@ describe("useIndicator", () => {
     });
 
     test("only the latest slider value is requested", async () => {
-        const fetcher = jest.fn().mockResolvedValue({});
+        const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({});
 
         const {rerender} = renderHook(
             ({period}) => useIndicator("IBM", period, fetcher),
@@ -71,7 +85,7 @@ describe("useIndicator", () => {
         const oldRequest = deferred<Values>();
         const newRequest = deferred<Values>();
 
-        const fetcher = jest.fn()
+        const fetcher = vi.fn<FetchIndicator>()
             .mockReturnValueOnce(oldRequest.promise)
             .mockReturnValueOnce(newRequest.promise);
 
@@ -104,7 +118,7 @@ describe("useIndicator", () => {
     });
 
     test("retries a failed request with the same settings", async () => {
-        const fetcher = jest.fn()
+        const fetcher = vi.fn<FetchIndicator>()
             .mockRejectedValueOnce(new Error("Backend unavailable."))
             .mockResolvedValueOnce({"2026-10-05": 42});
 
@@ -132,7 +146,7 @@ describe("useIndicator", () => {
     });
 
     test("reports insufficient data after a successful empty response", async () => {
-        const fetcher = jest.fn().mockResolvedValue({});
+        const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({});
 
         const {result} = renderHook(() =>
             useIndicator("IBM", 50, fetcher)

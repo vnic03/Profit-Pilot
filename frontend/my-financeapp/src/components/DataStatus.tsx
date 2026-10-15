@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from "react";
 import {getDataStatus} from "../service/financeService";
 import ImportBudget from "./ImportBudget";
+import OperationsStatus from "./OperationsStatus";
 
 
 interface StatusRow {
@@ -136,6 +137,7 @@ const DataStatus: React.FC<{refreshVersion: number}> = ({
     return (
         <section aria-label="Stored data status">
             <h2>Data status</h2>
+            <OperationsStatus refreshVersion={refreshVersion} />
             <ImportBudget refreshVersion={refreshVersion} />
             <p>Import timestamps are shown in Europe/Berlin time.</p>
             <p className="data-status-explanation">

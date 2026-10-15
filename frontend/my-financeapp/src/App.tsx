@@ -183,7 +183,7 @@ function App() {
                 </section>
 
                 <footer className="page-footer">
-                    Profit Pilot · Historical data for market research
+                    Profit Pilot · Historical data for market research · Running on Raspberry Pi 5.
                 </footer>
             </main>
         </div>

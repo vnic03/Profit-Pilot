@@ -19,6 +19,7 @@ public class PriceImportService {
     private static final Logger logger =
             LoggerFactory.getLogger(PriceImportService.class);
 
+    private final ImportRunStore runStore;
     private final ApiClient apiClient;
     private final ImportPause pause;
     private final long requestDelayMs;
@@ -29,6 +30,7 @@ public class PriceImportService {
     public PriceImportService(
             ApiClient apiClient,
             ImportPause pause,
+            ImportRunStore runStore,
             @Value("${profitpilot.sync.request-delay-ms:15000}")
             long requestDelayMs,
             @Value("${profitpilot.sync.symbols:${profitpilot.sync.symbol:}}")
@@ -40,6 +42,7 @@ public class PriceImportService {
             );
         }
 
+        this.runStore = runStore;
         this.apiClient = apiClient;
         this.pause = pause;
         this.requestDelayMs = requestDelayMs;
@@ -68,83 +71,100 @@ public class PriceImportService {
             );
         }
 
+        java.time.Instant startedAt = java.time.Instant.now();
+        var outcomes = new java.util.LinkedHashMap<String, String>();
         try {
-            if (!apiClient.isImportEnabled()) {
+            ImportReport report = executeImport(outcomes);
+            runStore.record(startedAt, report, outcomes);
+            return report;
+        } catch (RuntimeException failure) {
+            runStore.record(startedAt, null, outcomes);
+            throw failure;
+        } finally {
+            running.set(false);
+        }
+    }
+
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    private ImportReport executeImport(java.util.Map<String, String> outcomes) {
+        if (!apiClient.isImportEnabled()) {
+            return new ImportReport(
+                    RunStatus.DISABLED, 0, 0, 0, 0
+            );
+        }
+
+        List<String> symbols = requestedSymbols();
+
+        int imported = 0;
+        int skipped = 0;
+        int failed = 0;
+        int waiting = 0;
+
+        logger.info("Starting price import for {}.", symbols);
+
+        for (int index = 0; index < symbols.size(); index++) {
+            if (Thread.currentThread().isInterrupted()) {
                 return new ImportReport(
-                        RunStatus.DISABLED, 0, 0, 0, 0
+                        RunStatus.INTERRUPTED,
+                        imported, skipped, failed, waiting
                 );
             }
 
-            List<String> symbols = requestedSymbols();
+            if (index > 0) {
+                try {
+                    pause.await(requestDelayMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
 
-            int imported = 0;
-            int skipped = 0;
-            int failed = 0;
-            int waiting = 0;
-
-            logger.info("Starting price import for {}.", symbols);
-
-            for (int index = 0; index < symbols.size(); index++) {
-                if (Thread.currentThread().isInterrupted()) {
                     return new ImportReport(
                             RunStatus.INTERRUPTED,
                             imported, skipped, failed, waiting
                     );
                 }
+            }
 
-                if (index > 0) {
-                    try {
-                        pause.await(requestDelayMs);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+            String symbol = symbols.get(index);
 
+            try {
+                ApiClient.SyncResult result =
+                        apiClient.syncDailyPrices(symbol);
+
+                outcomes.put(symbol, result.name());
+                switch (result) {
+                    case IMPORTED -> imported++;
+                    case WAITING_FOR_DATA -> waiting++;
+                    case SKIPPED, BUDGET_OR_COOLDOWN -> skipped++;
+                    case DISABLED -> {
                         return new ImportReport(
-                                RunStatus.INTERRUPTED,
+                                RunStatus.DISABLED,
                                 imported, skipped, failed, waiting
                         );
                     }
                 }
+            } catch (Exception e) {
+                failed++;
+                outcomes.put(symbol, "FAILED");
 
-                String symbol = symbols.get(index);
-
-                try {
-                    ApiClient.SyncResult result =
-                            apiClient.syncDailyPrices(symbol);
-
-                    switch (result) {
-                        case IMPORTED -> imported++;
-                        case WAITING_FOR_DATA -> waiting++;
-                        case SKIPPED -> skipped++;
-                        case DISABLED -> {
-                            return new ImportReport(
-                                    RunStatus.DISABLED,
-                                    imported, skipped, failed, waiting
-                            );
-                        }
-                    }
-                } catch (Exception e) {
-                    failed++;
-
-                    logger.error(
-                            "Price import failed for {}. "
-                                    + "Continuing with remaining stocks.",
-                            symbol,
-                            e
-                    );
-                }
+                logger.error(
+                        "Price import failed for {}. "
+                                + "Continuing with remaining stocks.",
+                        symbol,
+                        e
+                );
             }
-
-            RunStatus status = Thread.currentThread().isInterrupted()
-                    ? RunStatus.INTERRUPTED
-                    : RunStatus.COMPLETED;
-
-            return new ImportReport(
-                    status, imported, skipped, failed, waiting
-            );
-
-        } finally {
-            running.set(false);
         }
+
+        RunStatus status = Thread.currentThread().isInterrupted()
+                ? RunStatus.INTERRUPTED
+                : RunStatus.COMPLETED;
+
+        return new ImportReport(
+                status, imported, skipped, failed, waiting
+        );
+
     }
 
     private List<String> requestedSymbols() {

@@ -1,5 +1,6 @@
 import React from "react";
 import {fireEvent, render, screen} from "@testing-library/react";
+import {beforeEach, expect, test, vi, type Mock} from "vitest";
 import FinanceData from "./FinanceData";
 import {
     getStocks,
@@ -11,30 +12,28 @@ import {
     getMacdSeries
 } from "./financeService";
 
-jest.mock("./financeService", () => ({
-    getStocks: jest.fn(),
-    getClosePrices: jest.fn(),
-    getHigh: jest.fn(),
-    getLow: jest.fn(),
-    getOpen: jest.fn(),
-    getVolume: jest.fn(),
-    getMacdSeries: jest.fn()
+vi.mock("./financeService", () => ({
+    getStocks: vi.fn(),
+    getClosePrices: vi.fn(),
+    getHigh: vi.fn(),
+    getLow: vi.fn(),
+    getOpen: vi.fn(),
+    getVolume: vi.fn(),
+    getMacdSeries: vi.fn()
 }));
 
-jest.mock("../components/charts/stock-chart/StockChart.tsx", () => ({
-    __esModule: true,
+vi.mock("../components/charts/stock-chart/StockChart", () => ({
     default: ({symbol}: {symbol: string}) => (
         <div>Chart for {symbol}</div>
     )
 }));
 
-jest.mock("../components/ExportButton", () => ({
-    __esModule: true,
+vi.mock("../components/ExportButton", () => ({
     default: () => null
 }));
 
-const loadStocks = getStocks as jest.Mock;
-const loadPrices = getClosePrices as jest.Mock;
+const loadStocks = getStocks as Mock;
+const loadPrices = getClosePrices as Mock;
 
 const testStock = {
     symbol: "DEMO",
@@ -44,7 +43,7 @@ const testStock = {
 };
 
 beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
 
     for (const loader of [
         getClosePrices,
@@ -53,10 +52,10 @@ beforeEach(() => {
         getOpen,
         getVolume
     ]) {
-        (loader as jest.Mock).mockResolvedValue({});
+        (loader as Mock).mockResolvedValue({});
     }
 
-    (getMacdSeries as jest.Mock).mockResolvedValue({
+    (getMacdSeries as Mock).mockResolvedValue({
         macd: {},
         signal: {},
         histogram: {}

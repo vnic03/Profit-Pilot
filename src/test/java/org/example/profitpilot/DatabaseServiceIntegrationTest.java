@@ -90,10 +90,37 @@ class DatabaseServiceIntegrationTest {
 
         new ResourceDatabasePopulator(
                 new ClassPathResource("db/api-budget.sql"),
-                new ClassPathResource("db/price-import-retry.sql")
+                new ClassPathResource("db/price-import-retry.sql"),
+                new ClassPathResource("db/import-run-status.sql")
         ).execute(dataSource);
 
         database = new DatabaseService(dataSource);
+    }
+
+    @Test
+    void abandonedAttemptCanRecoverAfterCooldown() throws Exception {
+        assertTrue(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("IBM"));
+        ageLastAttempt("IBM");
+        assertTrue(new DatabaseService(dataSource).tryStartDailySync("IBM"));
+        assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
+    }
+
+    @Test
+    void lastFinishedRunIsPersistedAndReplaced() {
+        var mapper = tools.jackson.databind.json.JsonMapper.builder()
+        .findAndAddModules()
+        .build();
+        var store = new org.example.profitpilot.sync.ImportRunStore(jdbc, mapper);
+        assertNull(store.latest());
+        var report = new org.example.profitpilot.sync.PriceImportService.ImportReport(
+                org.example.profitpilot.sync.PriceImportService.RunStatus.COMPLETED, 0, 0, 1, 0);
+        store.record(java.time.Instant.now(), report, java.util.Map.of("IBM", "FAILED"));
+        var recreated = new org.example.profitpilot.sync.ImportRunStore(jdbc, mapper);
+        assertEquals("FAILED", recreated.latest().outcomes().get("IBM"));
+        store.record(java.time.Instant.now(), null, java.util.Map.of());
+        assertEquals("FAILED", recreated.latest().status());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM import_run_status", Integer.class));
     }
 
     private void ageLastAttempt(String symbol) {

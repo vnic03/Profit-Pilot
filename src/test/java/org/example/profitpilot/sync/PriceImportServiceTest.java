@@ -23,6 +23,7 @@ class PriceImportServiceTest {
         return new PriceImportService(
                 client,
                 pause,
+                mock(ImportRunStore.class),
                 15000,
                 symbols
         );

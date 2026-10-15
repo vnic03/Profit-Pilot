@@ -23,7 +23,8 @@ public class DevSecurityConfig {
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeRequests(auth -> auth.requestMatchers("/api/**").permitAll()
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/**").permitAll()
                         .anyRequest().authenticated())
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable);

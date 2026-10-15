@@ -1,6 +1,8 @@
 import axios from "axios";
+import { API_BASE_URL } from "./apiConfig";
 
-const baseUrl = 'http://localhost:8080/api/finance';
+
+const baseUrl = `${API_BASE_URL}/api/finance`;
 
 // service to fetch data from the API
 async function fetchFromApi(endpoint, params = {}) {

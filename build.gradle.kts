@@ -1,14 +1,17 @@
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
 plugins {
     java
-    id("org.springframework.boot") version "3.2.3"
-    id("io.spring.dependency-management") version "1.1.4"
+    id("org.springframework.boot") version "4.1.1"
 }
 
 group = "org.example"
-version = "0.0.1-SNAPSHOT"
+version = "1.0.0"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 repositories {
@@ -16,24 +19,72 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation(platform(SpringBootPlugin.BOM_COORDINATES))
+
+    implementation(platform("tools.jackson:jackson-bom:3.1.7"))
+
+    constraints {
+        implementation("org.apache.tomcat.embed:tomcat-embed-core:11.0.27") {
+            because("Sicherheitsupdates für eingebetteten Tomcat")
+        }
+        implementation("org.apache.tomcat.embed:tomcat-embed-el:11.0.27") {
+            because("Einheitliche Tomcat-Version")
+        }
+        implementation("org.apache.tomcat.embed:tomcat-embed-websocket:11.0.27") {
+            because("Einheitliche Tomcat-Version")
+        }
+    }
+
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-security")
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.json:json:20231013")
-    implementation("org.postgresql:postgresql:42.7.0")
-    implementation("com.zaxxer:HikariCP:5.0.0")
-    implementation("org.jfree:jfreechart:1.5.3")
-    implementation("nz.ac.waikato.cms.weka:weka-stable:3.8.5")
-    implementation("com.google.guava:guava:31.0.1-jre")
-    implementation("io.github.cdimascio:dotenv-java:2.2.0")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
 
+    implementation("org.json:json:20260814")
+    implementation("com.google.guava:guava:33.5.0-jre")
+    implementation("io.github.cdimascio:dotenv-java:3.2.0")
 
-    runtimeOnly("com.h2database:h2")
+    runtimeOnly("org.postgresql:postgresql")
 
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
+    testImplementation("nz.ac.waikato.cms.weka:weka-stable:3.8.5")
+
+    testRuntimeOnly("com.h2database:h2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+
+    jvmArgs("-Xshare:off")
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    archiveFileName.set("profit-pilot.jar")
+
+    exclude("**/application.properties")
+
+    from("frontend/my-financeapp/build") {
+        into("BOOT-INF/classes/static")
+    }
+
+    doFirst {
+        check(file("frontend/my-financeapp/build/index.html").isFile) {
+            "Build the frontend before running bootJar."
+        }
+    }
+}
+
+springBoot {
+    buildInfo {
+        properties {
+            additional.set(
+                mapOf(
+                    "revision" to providers
+                        .environmentVariable("PROFITPILOT_BUILD_REVISION")
+                        .getOrElse("local-unversioned")
+                )
+            )
+        }
+    }
 }

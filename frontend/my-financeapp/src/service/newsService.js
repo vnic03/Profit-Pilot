@@ -1,6 +1,7 @@
 import axios from "axios";
+import { API_BASE_URL } from "./apiConfig";
 
-const baseUrl = "http://localhost:8080/api/news";
+const baseUrl = `${API_BASE_URL}/api/news`;
 
 export async function getNews(symbol, signal) {
     const response = await axios.get(baseUrl, {

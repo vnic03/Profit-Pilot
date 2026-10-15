@@ -348,6 +348,8 @@ public class DatabaseService {
                                     <= clock_timestamp() - INTERVAL '1 hour'
                                 AND (
                                     stock_sync_status.retry_allowed
+                                    OR stock_sync_status.last_success_at IS NULL
+                                    OR stock_sync_status.last_success_at < stock_sync_status.last_attempt_at
                                     OR (
                                         stock_sync_status.last_attempt_at
                                         AT TIME ZONE 'Europe/Berlin'

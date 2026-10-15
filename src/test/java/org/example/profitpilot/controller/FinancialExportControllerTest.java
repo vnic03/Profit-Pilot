@@ -113,7 +113,7 @@ class FinancialExportControllerTest {
                 .thenReturn(List.of());
 
         mvc.perform(get("/api/finance/export/IBM"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code")
                         .value("insufficient_data"))
                 .andExpect(header().doesNotExist(

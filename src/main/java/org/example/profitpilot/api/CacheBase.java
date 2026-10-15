@@ -22,7 +22,7 @@ public abstract class CacheBase<T> {
     protected HttpClient httpClient =
         HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    protected Dotenv dotenv = Dotenv.load();
+    protected Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
     protected Cache<String, T> cache;
     protected String apiKey;
     protected Logger logger = LoggerFactory.getLogger(CacheBase.class);

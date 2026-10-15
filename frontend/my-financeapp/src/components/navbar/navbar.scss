@@ -101,6 +101,25 @@
   }
 }
 
+.sidebar .sidebar-note .sidebar-credit {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid #557466;
+  color: #b6cbc2;
+  font-size: 12px;
+}
+
+.sidebar .sidebar-credit a {
+  color: #b8e6cd;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sidebar .sidebar-credit a:hover {
+  color: #fff;
+}
+
 @media (max-width: 900px) {
   .sidebar {
     position: static;

@@ -15,7 +15,7 @@ public class AlphaVantageCacheBenchmark {
 
         @Test
         public void benchmarkGetData() {
-            String symbol = "AAPL"; // Use a real symbol for your tests
+            String symbol = "AAPL";
 
             // Measure time before improvements = 691202067 ns
            // 766059402 ns
@@ -25,4 +25,5 @@ public class AlphaVantageCacheBenchmark {
             long end = System.nanoTime();
             System.out.println("Time before improvements = " + (end - start) + " ns");
         }
-    }
+
+}
