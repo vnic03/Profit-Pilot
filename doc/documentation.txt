@@ -1,0 +1,111 @@
+PROFIT PILOT — DEVELOPMENT NOTES
+From restarting the project to Version 1.0
+
+
+1. Picking up the project again
+------------------------------
+- Returned to the original Java/React project after a long break.
+- Reviewed the existing code, database, charts, and unfinished features.
+- Defined V1: daily stock prices, indicators, news, and analysis export.
+- Left prediction models out of scope.
+
+2. Fixing imports and cleaning old data
+--------------------------------------
+- Made external API requests explicitly configurable.
+- Added request spacing and tracking of failed and successful imports.
+- Saved prices transactionally and prevented duplicate symbol/date rows.
+- Refreshed the initial five stocks; retried GOOGL after a rate-limit issue.
+- Backed up the database before removing obsolete prices and indicators.
+- Kept recent data instead of backfilling the entire project break.
+
+3. Indicators and export
+------------------------
+- Corrected and tested SMA, EMA, RSI, and MACD calculations.
+- Added MACD signal and histogram series; separated RSI and MACD charts.
+- Sorted chart data by date and improved indicator request handling.
+- Calculated market movers from stored prices to save API requests.
+- Updated ARFF export to calculate indicators from stored closing prices.
+- Added browser downloads and fixed accidentally nested source folders.
+
+4. Frontend redesign
+--------------------
+- Reworked the layout, navigation, charts, controls, and mobile styling.
+- Improved market-mover cards and company-news presentation.
+- Added loading, error, empty-result, and retry states.
+- Displayed stored price dates, data freshness, and API budget information.
+- Kept reloading stored data separate from requesting new provider data.
+- Added Profit Pilot branding, favicon, and author link.
+
+5. Budgets, scheduling, and stock coverage
+----------------------------------------
+- Added a shared PostgreSQL-backed rolling-24-hour request budget.
+- Worked within the available 25-request price-provider allowance.
+- Fixed a missing budget table during the first live verification.
+- Verified the import flow with a controlled IBM request.
+- Added startup checks, scheduled refreshes, cooldowns, and bounded retries.
+- Used a US trading calendar and New York time for freshness checks.
+- Added separate caching and budget handling for Marketaux news.
+- Centralized the stock catalog and expanded it to ten companies:
+  IBM, AAPL, GOOGL, MSFT, AMZN, NVDA, JPM, JNJ, KO, XOM.
+
+6. Raspberry Pi deployment
+--------------------------
+- Set up Java 21, PostgreSQL, and Profit Pilot on the Pi.
+- Transferred the database and checked the imported data.
+- Packaged the built frontend inside the Spring Boot JAR.
+- Configured automatic startup through systemd.
+- Verified the website and API on port 18080 in the local network.
+- The development computer was no longer needed to keep the app running.
+
+7. Monitoring and updates
+------------------------
+- Added build revision, startup time, and import-status endpoints.
+- Stored the last completed import result across restarts.
+- Added dashboard visibility for build and import information.
+- Created build, installation, and Pi status-check scripts.
+- Included checksums, a previous-JAR backup, and rollback handling.
+- Installed updates while preserving the existing Pi database.
+- Checked logs and import results after roughly a day of operation.
+
+8. Testing and fixes during deployment
+-------------------------------------
+- Tested calculations, exports, imports, and database concurrency rules.
+- Tested HTTP timeouts, connection failures, and later recovery locally.
+- Investigated incorrect early timestamps after a Pi restart.
+- Confirmed clock synchronization and successfully caught up IBM prices.
+- Added a startup dependency on time synchronization.
+- Verified all ten stocks as current in the reported Pi status checks.
+
+9. Dependency updates and release cleanup
+----------------------------------------
+- Replaced Create React App with Vite and migrated tests to Vitest.
+- Resolved an installation conflict caused by old node_modules contents.
+- Updated Spring Boot and cleaned up unused/runtime dependencies.
+- Corrected the JAR scan after the first attempt detected no dependencies.
+- Updated Tomcat and Jackson to address the reported findings.
+- Verified frontend tests, TypeScript, backend tests, and production builds.
+- Confirmed 15 passing PostgreSQL integration tests in the later checks.
+- Frontend audits and the corrected JAR scan reported zero known findings
+  at the time of verification.
+- Removed unnecessary Spring default-user configuration in the server profile.
+- Set the application version to 1.0.0 and cleaned up source formatting.
+
+10. Domain and private access
+-----------------------------
+- Configured profit-pilot.trade with Cloudflare Tunnel and Access.
+- Installed cloudflared as an automatically starting service on the Pi.
+- Restricted the backend listener to 127.0.0.1:18080.
+- Allowed access through approved email addresses and one-time email codes.
+- Protected the website and API; set the session duration to 12 hours.
+- Confirmed Protect with Access and account two-factor authentication.
+- Tested login redirects for the website and selected API endpoints.
+- Confirmed approved login worked and direct LAN access was refused.
+- Checked other Pi services and disabled unused rpcbind service/socket.
+
+11. V1 status and remaining notes
+--------------------------------
+- V1 finally runs on the Pi at https://profit-pilot.trade for approved users.
+- Email approvals remain manual in Cloudflare;
+- Prices are daily data, not live quotes; provider limits still apply.
+
+

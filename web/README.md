@@ -2,7 +2,7 @@
 
 React and TypeScript frontend, built with Vite and styled with CSS/SCSS. Charts use Recharts; tests use Vitest and React Testing Library.
 
-For installation, local startup, backend configuration, standard tests, builds, and deployment, see the [main README](../README.md).
+For installation, local startup, backend configuration, standard tests, builds, and deployment, see the [development guide](../doc/development.md).
 
 ## Source layout
 

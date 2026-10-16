@@ -1,8 +1,6 @@
 HELP.md
-ROADMAP.md
 .gradle
 build/
-doc/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -41,6 +39,3 @@ out/
 ### VS Code ###
 .vscode/
 /financialdata.arff
-
-# Local working notes
-docs/
