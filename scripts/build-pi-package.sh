@@ -13,7 +13,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 (
-  cd frontend/my-financeapp
+  cd web
   npm ci
   npm test
   VITE_API_BASE_URL= npm run build

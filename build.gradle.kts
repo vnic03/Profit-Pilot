@@ -5,7 +5,7 @@ plugins {
     id("org.springframework.boot") version "4.1.1"
 }
 
-group = "org.example"
+group = "io.github.vnic03"
 version = "1.0.0"
 
 java {
@@ -65,12 +65,12 @@ tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     // Production supplies its own configuration; never bundle local credentials.
     exclude("**/application.properties")
 
-    from("frontend/my-financeapp/build") {
+    from("web/build") {
         into("BOOT-INF/classes/static")
     }
 
     doFirst {
-        check(file("frontend/my-financeapp/build/index.html").isFile) {
+        check(file("web/build/index.html").isFile) {
             "Build the frontend before running bootJar."
         }
     }
