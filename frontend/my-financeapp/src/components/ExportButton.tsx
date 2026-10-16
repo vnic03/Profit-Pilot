@@ -52,6 +52,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({symbol}) => {
             } finally {
                 link.remove();
 
+                // Give the browser time to start reading the blob before releasing it.
                 window.setTimeout(() => {
                     URL.revokeObjectURL(url);
                 }, 30000);

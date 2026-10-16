@@ -117,6 +117,7 @@ const News: React.FC<{stock: Stock | null}> = ({stock}) => {
             return;
         }
 
+        // Avoid spending news requests when the user only scrolls past this section.
         const timer = window.setTimeout(() => {
             void loadNews();
         }, 600);

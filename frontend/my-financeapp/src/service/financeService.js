@@ -4,7 +4,6 @@ import { API_BASE_URL } from "./apiConfig";
 
 const baseUrl = `${API_BASE_URL}/api/finance`;
 
-// service to fetch data from the API
 async function fetchFromApi(endpoint, params = {}) {
     try {
         const response = await axios.get(`${baseUrl}/${endpoint}`, { params });
@@ -15,7 +14,7 @@ async function fetchFromApi(endpoint, params = {}) {
     }
 }
 
-// Global-Error-Handler
+// Keep failures rejected so each caller can show its own error state.
 axios.interceptors.response.use(
     response => response,
     error => {

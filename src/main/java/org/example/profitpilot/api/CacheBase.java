@@ -55,6 +55,7 @@ public abstract class CacheBase<T> {
     protected HttpResponse<String> sendExternalRequest(HttpRequest request)
           throws IOException, InterruptedException {
 
+        // Enforce the switches at the network boundary, not just in callers.
         if (!isExternalApiEnabled()) {
           throw new IOException ("External requests are disabled for this provider");
         }

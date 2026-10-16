@@ -10,6 +10,7 @@ public final class PriceFreshness {
     private static final ZoneId MARKET_ZONE =
             ZoneId.of("America/New_York");
 
+    // Allow overnight publication time; this is our policy, not a provider guarantee.
     private static final LocalTime CHECK_TIME =
             LocalTime.of(6, 0);
 
@@ -36,6 +37,7 @@ public final class PriceFreshness {
             return new Assessment(Status.FUTURE_DATE, null);
         }
 
+        // Do not guess freshness beyond the dates covered by our holiday calendar.
         if (!UsTradingCalendar.supports(today)) {
             return new Assessment(Status.CALENDAR_UNAVAILABLE, null);
         }

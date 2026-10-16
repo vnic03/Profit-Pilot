@@ -39,6 +39,7 @@ export function useIndicator(
 
         const controller = new AbortController();
 
+        // Wait for slider changes to settle before requesting another calculation.
         const timer = window.setTimeout(async () => {
             try {
                 const data = await fetchIndicator(
@@ -69,6 +70,7 @@ export function useIndicator(
         };
     }, [symbol, period, key, validPeriod, fetchIndicator]);
 
+    // Never show values from the previous symbol or period while a request is pending.
     const current = result?.key === key ? result : null;
 
     return {

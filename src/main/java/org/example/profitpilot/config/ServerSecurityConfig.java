@@ -25,6 +25,8 @@ public class ServerSecurityConfig {
             HttpSecurity http
     ) throws Exception {
 
+        // Hosted authentication belongs to Cloudflare Access.
+        // Keep the origin private; these GET rules do not authenticate visitors.
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .requestCache(AbstractHttpConfigurer::disable)

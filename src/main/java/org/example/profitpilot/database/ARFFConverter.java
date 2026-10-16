@@ -29,6 +29,7 @@ public class ARFFConverter {
         content.append("@ATTRIBUTE signal_line NUMERIC\n\n");
         content.append("@DATA\n");
 
+        // Decimal commas would be mistaken for ARFF field separators.
         for (MarketIndicators row : dataList) {
             content.append(String.format(
                     Locale.US,

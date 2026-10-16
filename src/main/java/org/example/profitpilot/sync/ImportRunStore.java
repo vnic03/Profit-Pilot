@@ -37,6 +37,7 @@ public class ImportRunStore {
                     report,
                     Map.copyOf(outcomes)
             );
+            // Keep one latest report; the service journal holds older run details.
             jdbc.update("""
                     INSERT INTO import_run_status (id, payload) VALUES (1, ?)
                     ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload
@@ -50,6 +51,7 @@ public class ImportRunStore {
     }
 
     public Run latest() {
+        // Do not present an older report as current after a failed write.
         if (lastWriteFailed) {
             throw new IllegalStateException("Latest import status could not be persisted.");
         }

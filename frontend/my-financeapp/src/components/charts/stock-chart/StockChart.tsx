@@ -80,6 +80,7 @@ const StockChart: React.FC<StockChartProps> = React.memo(({
         MACD: false
     });
 
+    // Join by date, not position: indicators omit their early warm-up sessions.
     const data: ChartData[] = useMemo(() => {
         return Object.keys(symbolData.closePrices)
             .sort()
@@ -99,6 +100,7 @@ const StockChart: React.FC<StockChartProps> = React.memo(({
             }));
     }, [symbolData, sma.data, ema.data, rsi.data]);
 
+    // Trim only the display; indicators still use the full stored price history.
     const chartData = range === "all"
         ? data
         : data.slice(-Number(range));

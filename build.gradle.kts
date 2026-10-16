@@ -62,6 +62,7 @@ tasks.withType<Test> {
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     archiveFileName.set("profit-pilot.jar")
 
+    // Production supplies its own configuration; never bundle local credentials.
     exclude("**/application.properties")
 
     from("frontend/my-financeapp/build") {

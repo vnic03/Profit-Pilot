@@ -38,6 +38,7 @@ backup="${target}.backup.$(date -u +%Y%m%dT%H%M%SZ)"
 
 cp -p -- "$target" "$backup"
 
+# Restore application code only; database migrations are not undone here.
 rollback() {
   trap - ERR
   echo "Update failed; restoring $backup"

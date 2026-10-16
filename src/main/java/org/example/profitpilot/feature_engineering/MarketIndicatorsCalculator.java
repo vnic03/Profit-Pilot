@@ -2,11 +2,11 @@ package org.example.profitpilot.feature_engineering;
 
 import java.util.*;
 
+/** Uses ISO date keys (yyyy-MM-dd); warm-up periods are omitted from results. */
 public class MarketIndicatorsCalculator {
 
 
-    public static Map<String, Double> SMA(Map<String, Double> pricesAndDates,
-        int period)
+    public static Map<String, Double> SMA(Map<String, Double> pricesAndDates, int period)
     {
 
         if (period < 1) {
@@ -47,8 +47,7 @@ public class MarketIndicatorsCalculator {
     }
 
 
-    public static Map<String, Double> RSI(Map<String, Double> pricesAndDates,
-        int period)
+    public static Map<String, Double> RSI(Map<String, Double> pricesAndDates, int period)
     {
 
         List<Map.Entry<String, Double>> entries =
@@ -56,6 +55,7 @@ public class MarketIndicatorsCalculator {
 
         Map<String, Double> result = new LinkedHashMap<>();
 
+        // RSI needs one more price than its period to measure price changes.
         if (entries.size() <= period) {
             return result;
         }
@@ -79,6 +79,7 @@ public class MarketIndicatorsCalculator {
                 rsiValue(averageGain, averageLoss)
         );
 
+        // Wilder smoothing carries the previous averages into each new session.
         for (int index = period + 1; index < entries.size(); index++) {
             double change = entries.get(index).getValue()
                     - entries.get(index - 1).getValue();
@@ -100,8 +101,7 @@ public class MarketIndicatorsCalculator {
         return result;
     }
 
-    public static Map<String, Double> EMA(Map<String, Double> pricesAndDates,
-        int period)
+    public static Map<String, Double> EMA(Map<String, Double> pricesAndDates, int period)
     {
 
         List<Map.Entry<String, Double>> entries =
@@ -118,6 +118,7 @@ public class MarketIndicatorsCalculator {
             sum += entries.get(index).getValue();
         }
 
+        // Seed with an SMA so the first price does not dominate the early EMA.
         double ema = sum / period;
         double multiplier = 2.0 / (period + 1.0);
 
@@ -156,6 +157,7 @@ public class MarketIndicatorsCalculator {
                 macd.put(date, shortEma.get(date) - value)
         );
 
+        // The signal needs its own warm-up after the MACD series begins.
         Map<String, Double> signal = EMA(macd, signalPeriod);
         Map<String, Double> histogram = new LinkedHashMap<>();
 
@@ -194,6 +196,7 @@ public class MarketIndicatorsCalculator {
     }
 
     private static double rsiValue(double averageGain, double averageLoss) {
+        // Treat a flat window as neutral rather than dividing zero by zero.
         if (averageGain == 0.0 && averageLoss == 0.0) {
             return 50.0;
         }
@@ -213,5 +216,5 @@ public class MarketIndicatorsCalculator {
     public record MacdResult(
         Map<String, Double> macd,
         Map<String, Double> signal,
-        Map<String, Double> histogram) {}
+        Map<String, Double> histogram) { }
 }

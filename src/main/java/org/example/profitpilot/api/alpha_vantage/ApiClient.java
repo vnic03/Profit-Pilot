@@ -105,6 +105,7 @@ public class ApiClient {
             );
         }
 
+        // Check stored dates before reserving budget or contacting the provider.
         if (freshness.status() == PriceFreshness.Status.CURRENT) {
             logger.info(
                     "Skipped import for {}: stored price date {} "
@@ -175,6 +176,8 @@ public class ApiClient {
 
             dbService.insertSharePrice(sharePrices);
 
+            // Valid prices are worth saving even if the provider is still behind.
+            // Leave the stock eligible for a later, budget-limited retry.
             if (latestResponseDate.isBefore(freshness.referenceDate())) {
                 dbService.markDailySyncFailed(normalizedSymbol);
 

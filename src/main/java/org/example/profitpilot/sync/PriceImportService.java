@@ -65,6 +65,7 @@ public class PriceImportService {
     }
 
     public ImportReport runConfiguredImport() {
+        // Prevent overlapping runs in this process; database locks protect the budget.
         if (!running.compareAndSet(false, true)) {
             return new ImportReport(
                     RunStatus.ALREADY_RUNNING, 0, 0, 0, 0
@@ -113,6 +114,7 @@ public class PriceImportService {
                 );
             }
 
+            // Space every symbol check, even when the previous stock was skipped.
             if (index > 0) {
                 try {
                     pause.await(requestDelayMs);

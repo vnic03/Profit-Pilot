@@ -62,6 +62,7 @@ const FinanceData: React.FC<FinanceDataProps> = ({
     useEffect(() => {
         if (!currentSymbol) return;
 
+        // These requests may finish after a stock switch; ignore their late results.
         let cancelled = false;
 
         const loadData = async () => {

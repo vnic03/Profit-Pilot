@@ -40,8 +40,7 @@ public class IndicatorController {
             @PathVariable("symbol") String symbol,
             @PathVariable("period") String period) {
 
-        String normalizedSymbol =
-                symbol.trim().toUpperCase(Locale.ROOT);
+        String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
 
         if (!StockCatalog.supports(normalizedSymbol)) {
             return error(
@@ -65,12 +64,9 @@ public class IndicatorController {
 
         try {
             Map<String, Double> values = switch (indicator) {
-                case "dynamicSMA" ->
-                        database.getSMA(normalizedSymbol, parsedPeriod);
-                case "dynamicEMA" ->
-                        database.getEMA(normalizedSymbol, parsedPeriod);
-                case "dynamicRSI" ->
-                        database.getRSI(normalizedSymbol, parsedPeriod);
+                case "dynamicSMA" -> database.getSMA(normalizedSymbol, parsedPeriod);
+                case "dynamicEMA" -> database.getEMA(normalizedSymbol, parsedPeriod);
+                case "dynamicRSI" -> database.getRSI(normalizedSymbol, parsedPeriod);
                 default ->
                         throw new IllegalStateException(
                                 "Unexpected indicator route."

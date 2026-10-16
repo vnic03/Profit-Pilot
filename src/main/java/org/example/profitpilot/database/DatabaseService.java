@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
 
 import java.sql.*;
-import java.sql.Date;
 import java.util.*;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -28,19 +27,19 @@ public class DatabaseService {
     public void insertSharePrice(List<SharePrice> sharePrices) {
         final String SQL = """
                 INSERT INTO aktienkurse
-                  (symbol, date, open, high, low, close, volume)
+                (symbol, date, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (symbol, date)
                 DO UPDATE SET
-                  open = EXCLUDED.open,
-                  high = EXCLUDED.high,
-                  low = EXCLUDED.low,
-                  close = EXCLUDED.close,
-                  volume = EXCLUDED.volume
-              """;
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume
+            """;
 
         if (sharePrices == null || sharePrices.isEmpty()) {
-          throw new IllegalArgumentException("Nothing to save (insertSharePrice)");
+        throw new IllegalArgumentException("Nothing to save (insertSharePrice)");
         }
 
         try (Connection connection = connect()) {
@@ -83,34 +82,10 @@ public class DatabaseService {
         }
     }
 
-    public void insertFinancialIndicator
-            (String symbol, String date, Double sma, Double rsi,
-             Double ema, Double macd, Double signalLine)
-    {
-        final String SQL =
-                "INSERT INTO finanzindikatoren " +
-                        "(symbol, datum, sma, rsi, ema, macd, signal_line) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection connection = connect();
-             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-
-            pstmt.setString(1, symbol);
-            pstmt.setDate(2, Date.valueOf(date));
-            pstmt.setDouble(3, sma);
-            pstmt.setDouble(4, rsi);
-            pstmt.setDouble(5, ema);
-            pstmt.setDouble(6, macd);
-            pstmt.setDouble(7, signalLine);
-
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-        }
+    public Map<String, Double> getHigh(String symbol) {
+         return getMarketData(symbol, "high");
     }
-
-   public Map<String, Double> getHigh(String symbol) {
-        return getMarketData(symbol, "high");
-   }
 
     public Map<String, Double> getLow(String symbol) {
         return getMarketData(symbol, "low");
@@ -216,33 +191,10 @@ public class DatabaseService {
         return getMacdSeries(symbol).macd();
     }
 
-    private Map<String, Double> getFinancialIndicator(String symbol, String indicator) {
-        final String SQL = "SELECT datum, " + indicator +
-            " FROM finanzindikatoren WHERE symbol = ? ORDER BY datum ASC";
-        Map<String, Double> data = new HashMap<>();
-
-        try (Connection connection = connect();
-             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-
-            pstmt.setString(1, symbol);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String date = rs.getString("datum");
-                    double value = rs.getDouble(indicator);
-                    data.put(date, value);
-                }
-            }
-        } catch (SQLException e) {
-            System.out.println(
-                    "Error fetching " + indicator + " data: " + e.getMessage()
-            );
-        }
-        return data;
-    }
-
     public List<MarketIndicators> queryFinancialDataForSymbol(String symbol) {
 
         Map<String, Double> prices = getClosingPrices(symbol);
+        // Export settings stay fixed so downloads do not depend on chart controls.
         Map<String, Double> sma = MarketIndicatorsCalculator.SMA(prices, 20);
         Map<String, Double> ema = MarketIndicatorsCalculator.EMA(prices, 20);
         Map<String, Double> rsi = MarketIndicatorsCalculator.RSI(prices, 14);
@@ -251,6 +203,7 @@ public class DatabaseService {
 
         List<MarketIndicators> rows = new ArrayList<>();
 
+        // Export only dates past the warm-up period of every required indicator.
         for (String date : prices.keySet().stream().sorted().toList()) {
             if (!sma.containsKey(date)
                     || !ema.containsKey(date)
@@ -273,6 +226,7 @@ public class DatabaseService {
         return rows;
     }
 
+    /** Reserves a price request and its per-stock attempt in one transaction. */
     public boolean tryStartDailySync(String symbol) throws SQLException {
         try (Connection connection = connect()) {
             boolean originalAutoCommit = connection.getAutoCommit();
@@ -284,6 +238,8 @@ public class DatabaseService {
             connection.setAutoCommit(false);
 
             try {
+                // Serialize reservations across stocks and application instances.
+                // Hold the provider row lock until the new reservation is committed.
                 int requestLimit;
 
                 try (PreparedStatement statement = connection.prepareStatement("""
@@ -330,6 +286,8 @@ public class DatabaseService {
                     return false;
                 }
 
+                // An unfinished attempt can retry after an hour, including after a crash.
+                // The shared budget and three-attempt limit still apply.
                 boolean dailyAttemptReserved;
 
                 try (PreparedStatement statement = connection.prepareStatement("""
@@ -527,6 +485,7 @@ public class DatabaseService {
             connection.setAutoCommit(false);
 
             try {
+                // Lock before counting so concurrent news requests cannot overspend.
                 int limit;
 
                 try (PreparedStatement statement = connection.prepareStatement("""
@@ -598,6 +557,7 @@ public class DatabaseService {
         }
     }
 
+    // Keep the budget reservation: the provider may still count a failed request.
     public void markDailySyncFailed(String symbol) throws SQLException {
         String sql = """
                 UPDATE stock_sync_status

@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 export PROFITPILOT_BUILD_REVISION=\
 "$(git rev-parse --short HEAD)-$(date -u +%Y%m%dT%H%M%SZ)"
 
+# The package includes local edits, so the commit alone may not identify its contents.
 if [[ -n "$(git status --porcelain)" ]]; then
   PROFITPILOT_BUILD_REVISION="${PROFITPILOT_BUILD_REVISION}-dirty"
 fi

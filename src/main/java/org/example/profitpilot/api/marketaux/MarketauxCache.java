@@ -88,6 +88,7 @@ public class MarketauxCache extends CacheBase<NewsApiResponse> {
                 .timeout(Duration.ofSeconds(20))
                 .build();
 
+        // Reserve before sending; failed calls may also consume the provider quota.
         boolean reserved;
 
         try {
@@ -195,6 +196,7 @@ public class MarketauxCache extends CacheBase<NewsApiResponse> {
         }
 
         try {
+            // Share one load per symbol so simultaneous page views reuse the result.
             return cache.get(
                     normalizedSymbol,
                     () -> fetchData(normalizedSymbol)
