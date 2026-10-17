@@ -4,19 +4,12 @@ A self-hosted dashboard for exploring stock prices, technical indicators, and co
 
 [Website](https://profit-pilot.trade) · [Development guide](doc/development.md) · [Frontend](web/README.md) · [License](LICENSE)
 
-## Why I built it
-
-Profit Pilot started about two years ago as a small Java experiment for plotting stock prices. Since then, I have developed it into a web application with a React frontend, a Spring Boot backend, and a PostgreSQL database.
-
-It is also a project I run myself: the application is hosted on a Raspberry Pi 5, with Cloudflare Access and Tunnel handling access to the website. Working on it has meant dealing with both the charts and the less visible parts—data imports, provider limits, deployment, and recovery when something fails.
-
 ## What it does
 
 - Explore daily prices and trading volume for ten US-listed companies.
 - Compare SMA, EMA, RSI, and MACD indicators against stored price history.
 - See price movements across the tracked companies and read related news.
 - Export calculated indicators as ARFF files for analysis in tools such as Weka.
-- Inspect data freshness, import results, and remaining API request budgets.
 
 The tracked companies are Apple, Alphabet, Amazon, IBM, JPMorgan Chase, Johnson & Johnson, Coca-Cola, Microsoft, NVIDIA, and ExxonMobil.
 
@@ -39,7 +32,7 @@ Prices are shown in USD. This is a research tool using daily data, not a live tr
 
 The hosted application is available at [profit-pilot.trade](https://profit-pilot.trade).
 
-Access is invitation-only. Contact me through [my GitHub profile](https://github.com/vnic03) if you would like to try it. Approved users sign in with an email code through Cloudflare Access.
+Access is invitation-only. Contact me on github or message me on [Discord](https://discord.com/users/689200507960426517) if you would like to try it. Approved users sign in with an email code through Cloudflare Access.
 
 To run your own instance, follow the [development guide](doc/development.md).
 
@@ -98,19 +91,3 @@ The test suite covers indicator calculations, import behavior, request budgets, 
 - ARFF exports use fixed indicator settings rather than the current chart settings.
 - Database setup is manual. The hosted instance runs on a single Raspberry Pi.
 
-## Where it started
-
-The first version was a Java charting experiment. I have kept a screenshot because it shows the starting point of the project.
-
-<details>
-<summary>View the original Java prototype</summary>
-
-![Original Java stock-chart prototype](assets/history/java-prototype.png)
-
-</details>
-
-## License
-
-The project code is available under the [MIT License](LICENSE).
-
-Built by [Nico (@vnic03)](https://github.com/vnic03).
