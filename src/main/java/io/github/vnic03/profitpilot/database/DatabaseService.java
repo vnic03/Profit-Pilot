@@ -2,30 +2,29 @@ package io.github.vnic03.profitpilot.database;
 
 import io.github.vnic03.profitpilot.api.alphavantage.StockChange;
 import io.github.vnic03.profitpilot.indicators.MarketIndicatorsCalculator;
-import org.springframework.stereotype.Service;
-import javax.sql.DataSource;
-
 import java.sql.*;
-import java.util.*;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-
+import java.util.*;
+import javax.sql.DataSource;
+import org.springframework.stereotype.Service;
 
 @Service
 public class DatabaseService {
 
-    private final DataSource dataSource;
+  private final DataSource dataSource;
 
-    public DatabaseService(DataSource dataSource) {
-        this.dataSource = dataSource;
-    }
+  public DatabaseService(DataSource dataSource) {
+    this.dataSource = dataSource;
+  }
 
-    public Connection connect() throws SQLException {
-        return dataSource.getConnection();
-    }
+  public Connection connect() throws SQLException {
+    return dataSource.getConnection();
+  }
 
-    public void insertSharePrice(List<SharePrice> sharePrices) {
-        final String SQL = """
+  public void insertSharePrice(List<SharePrice> sharePrices) {
+    final String SQL =
+        """
                 INSERT INTO aktienkurse
                 (symbol, date, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -38,231 +37,218 @@ public class DatabaseService {
                 volume = EXCLUDED.volume
             """;
 
-        if (sharePrices == null || sharePrices.isEmpty()) {
-        throw new IllegalArgumentException("Nothing to save (insertSharePrice)");
+    if (sharePrices == null || sharePrices.isEmpty()) {
+      throw new IllegalArgumentException("Nothing to save (insertSharePrice)");
+    }
+
+    try (Connection connection = connect()) {
+      connection.setAutoCommit(false);
+
+      try (PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+        for (SharePrice sp : sharePrices) {
+          if (!validateData(
+              sp.symbol(), sp.date(), sp.open(), sp.high(), sp.low(), sp.close(), sp.volume())) {
+            throw new IllegalArgumentException("Invalid data for: " + sp.symbol());
+          }
+
+          pstmt.setString(1, sp.symbol());
+          pstmt.setDate(2, java.sql.Date.valueOf(sp.date()));
+          pstmt.setDouble(3, sp.open());
+          pstmt.setDouble(4, sp.high());
+          pstmt.setDouble(5, sp.low());
+          pstmt.setDouble(6, sp.close());
+          pstmt.setLong(7, sp.volume());
+          pstmt.addBatch();
         }
 
-        try (Connection connection = connect()) {
-            connection.setAutoCommit(false);
+        pstmt.executeBatch();
+        connection.commit();
 
-            try (PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-                for (SharePrice sp : sharePrices) {
-                    if (!validateData(
-                            sp.symbol(), sp.date(), sp.open(), sp.high(),
-                            sp.low(), sp.close(), sp.volume())) {
-                        throw new IllegalArgumentException(
-                                "Invalid data for: " + sp.symbol());
-                    }
-
-                    pstmt.setString(1, sp.symbol());
-                    pstmt.setDate(2, java.sql.Date.valueOf(sp.date()));
-                    pstmt.setDouble(3, sp.open());
-                    pstmt.setDouble(4, sp.high());
-                    pstmt.setDouble(5, sp.low());
-                    pstmt.setDouble(6, sp.close());
-                    pstmt.setLong(7, sp.volume());
-                    pstmt.addBatch();
-                }
-
-                pstmt.executeBatch();
-                connection.commit();
-
-            } catch (SQLException | RuntimeException e) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollbackError) {
-                    e.addSuppressed(rollbackError);
-                }
-                throw e;
-            }
-
-        } catch (SQLException e) {
-            throw new IllegalStateException(
-                    "Could not save shareprices", e);
+      } catch (SQLException | RuntimeException e) {
+        try {
+          connection.rollback();
+        } catch (SQLException rollbackError) {
+          e.addSuppressed(rollbackError);
         }
+        throw e;
+      }
+
+    } catch (SQLException e) {
+      throw new IllegalStateException("Could not save shareprices", e);
     }
+  }
 
+  public Map<String, Double> getHigh(String symbol) {
+    return getMarketData(symbol, "high");
+  }
 
-    public Map<String, Double> getHigh(String symbol) {
-         return getMarketData(symbol, "high");
-    }
+  public Map<String, Double> getLow(String symbol) {
+    return getMarketData(symbol, "low");
+  }
 
-    public Map<String, Double> getLow(String symbol) {
-        return getMarketData(symbol, "low");
-    }
+  public Map<String, Double> getOpen(String symbol) {
+    return getMarketData(symbol, "open");
+  }
 
-    public Map<String, Double> getOpen(String symbol) {
-        return getMarketData(symbol, "open");
-    }
+  public Map<String, Double> getClosePrices(String symbol) {
+    return getMarketData(symbol, "close");
+  }
 
-    public Map<String, Double> getClosePrices(String symbol) {
-        return getMarketData(symbol, "close");
-    }
+  public Map<String, Long> getVolume(String symbol) {
+    Map<String, Long> data = new HashMap<>();
+    String SQL = "SELECT date, volume FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
-    public Map<String, Long> getVolume(String symbol) {
-        Map<String, Long> data = new HashMap<>();
-        String SQL =
-            "SELECT date, volume FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
-
-        try (Connection connection = connect();
-             PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-            pstmt.setString(1, symbol);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String date = rs.getString("date");
-                    long volume = rs.getLong("volume");
-                    data.put(date, volume);
-                }
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Could not load stored volume.", e);
+    try (Connection connection = connect();
+        PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+      pstmt.setString(1, symbol);
+      try (ResultSet rs = pstmt.executeQuery()) {
+        while (rs.next()) {
+          String date = rs.getString("date");
+          long volume = rs.getLong("volume");
+          data.put(date, volume);
         }
-        return data;
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException("Could not load stored volume.", e);
     }
+    return data;
+  }
 
-   private Map<String, Double> getMarketData(String symbol, String column) {
-       Map<String, Double> data = new HashMap<>();
-       final String SQL = "SELECT date, " + column +
-           " FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
+  private Map<String, Double> getMarketData(String symbol, String column) {
+    Map<String, Double> data = new HashMap<>();
+    final String SQL =
+        "SELECT date, " + column + " FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
 
-       try (Connection connection = connect();
-            PreparedStatement pstmt = connection.prepareStatement(SQL)) {
-           pstmt.setString(1, symbol);
-           try (ResultSet rs = pstmt.executeQuery()) {
-               while (rs.next()) {
-                   String date = rs.getString("date");
-                   double value = rs.getDouble(column);
-                   data.put(date, value);
-               }
-           }
-       } catch (SQLException e) {
-           throw new IllegalStateException("Could not load stored market data.", e);
-       }
-       return data;
-   }
-
-   private Map<String, Double> getClosingPrices(String symbol) {
-       Map<String, Double> prices = new LinkedHashMap<>();
-       final String SQL =
-           "SELECT date, close FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
-
-       try (Connection connection = connect();
-            PreparedStatement pstmt = connection.prepareStatement(SQL))
-       {
-           pstmt.setString(1, symbol);
-           try (ResultSet rs = pstmt.executeQuery()) {
-               while (rs.next()) {
-                   String date = rs.getString("date");
-                   double close = rs.getDouble("close");
-                   prices.put(date, close);
-               }
-           }
-       } catch (SQLException e) {
-           throw new IllegalStateException("Could not load stored closing prices.", e);
-       }
-       return prices;
-   }
-
-   public Map<String, Double> getSMA(String symbol, int period) {
-        Map<String, Double> prices = getClosingPrices(symbol);
-        return MarketIndicatorsCalculator.SMA(prices, period);
-   }
-
-    public Map<String, Double> getRSI(String symbol, int period) {
-        Map<String, Double> prices = getClosingPrices(symbol);
-        return MarketIndicatorsCalculator.RSI(prices, period);
-    }
-
-    public Map<String, Double> getEMA(String symbol, int period) {
-        Map<String, Double> prices = getClosingPrices(symbol);
-        return MarketIndicatorsCalculator.EMA(prices, period);
-    }
-
-    public MarketIndicatorsCalculator.MacdResult getMacdSeries(String symbol) {
-        return MarketIndicatorsCalculator.MACD(
-                getClosingPrices(symbol),
-                12,
-                26,
-                9
-        );
-    }
-
-    public Map<String, Double> getMACD(String symbol) {
-        return getMacdSeries(symbol).macd();
-    }
-
-    public List<MarketIndicators> queryFinancialDataForSymbol(String symbol) {
-
-        Map<String, Double> prices = getClosingPrices(symbol);
-        // Export settings stay fixed so downloads do not depend on chart controls.
-        Map<String, Double> sma = MarketIndicatorsCalculator.SMA(prices, 20);
-        Map<String, Double> ema = MarketIndicatorsCalculator.EMA(prices, 20);
-        Map<String, Double> rsi = MarketIndicatorsCalculator.RSI(prices, 14);
-        MarketIndicatorsCalculator.MacdResult macd =
-                MarketIndicatorsCalculator.MACD(prices, 12, 26, 9);
-
-        List<MarketIndicators> rows = new ArrayList<>();
-
-        // Export only dates past the warm-up period of every required indicator.
-        for (String date : prices.keySet().stream().sorted().toList()) {
-            if (!sma.containsKey(date)
-                    || !ema.containsKey(date)
-                    || !rsi.containsKey(date)
-                    || !macd.macd().containsKey(date)
-                    || !macd.signal().containsKey(date)) {
-                continue;
-            }
-
-            rows.add(new MarketIndicators(
-                    date,
-                    sma.get(date),
-                    rsi.get(date),
-                    ema.get(date),
-                    macd.macd().get(date),
-                    macd.signal().get(date)
-            ));
+    try (Connection connection = connect();
+        PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+      pstmt.setString(1, symbol);
+      try (ResultSet rs = pstmt.executeQuery()) {
+        while (rs.next()) {
+          String date = rs.getString("date");
+          double value = rs.getDouble(column);
+          data.put(date, value);
         }
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException("Could not load stored market data.", e);
+    }
+    return data;
+  }
 
-        return rows;
+  private Map<String, Double> getClosingPrices(String symbol) {
+    Map<String, Double> prices = new LinkedHashMap<>();
+    final String SQL = "SELECT date, close FROM aktienkurse WHERE symbol = ? ORDER BY date ASC";
+
+    try (Connection connection = connect();
+        PreparedStatement pstmt = connection.prepareStatement(SQL)) {
+      pstmt.setString(1, symbol);
+      try (ResultSet rs = pstmt.executeQuery()) {
+        while (rs.next()) {
+          String date = rs.getString("date");
+          double close = rs.getDouble("close");
+          prices.put(date, close);
+        }
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException("Could not load stored closing prices.", e);
+    }
+    return prices;
+  }
+
+  public Map<String, Double> getSMA(String symbol, int period) {
+    Map<String, Double> prices = getClosingPrices(symbol);
+    return MarketIndicatorsCalculator.SMA(prices, period);
+  }
+
+  public Map<String, Double> getRSI(String symbol, int period) {
+    Map<String, Double> prices = getClosingPrices(symbol);
+    return MarketIndicatorsCalculator.RSI(prices, period);
+  }
+
+  public Map<String, Double> getEMA(String symbol, int period) {
+    Map<String, Double> prices = getClosingPrices(symbol);
+    return MarketIndicatorsCalculator.EMA(prices, period);
+  }
+
+  public MarketIndicatorsCalculator.MacdResult getMacdSeries(String symbol) {
+    return MarketIndicatorsCalculator.MACD(getClosingPrices(symbol), 12, 26, 9);
+  }
+
+  public Map<String, Double> getMACD(String symbol) {
+    return getMacdSeries(symbol).macd();
+  }
+
+  public List<MarketIndicators> queryFinancialDataForSymbol(String symbol) {
+
+    Map<String, Double> prices = getClosingPrices(symbol);
+    // Export settings stay fixed so downloads do not depend on chart controls.
+    Map<String, Double> sma = MarketIndicatorsCalculator.SMA(prices, 20);
+    Map<String, Double> ema = MarketIndicatorsCalculator.EMA(prices, 20);
+    Map<String, Double> rsi = MarketIndicatorsCalculator.RSI(prices, 14);
+    MarketIndicatorsCalculator.MacdResult macd = MarketIndicatorsCalculator.MACD(prices, 12, 26, 9);
+
+    List<MarketIndicators> rows = new ArrayList<>();
+
+    // Export only dates past the warm-up period of every required indicator.
+    for (String date : prices.keySet().stream().sorted().toList()) {
+      if (!sma.containsKey(date)
+          || !ema.containsKey(date)
+          || !rsi.containsKey(date)
+          || !macd.macd().containsKey(date)
+          || !macd.signal().containsKey(date)) {
+        continue;
+      }
+
+      rows.add(
+          new MarketIndicators(
+              date,
+              sma.get(date),
+              rsi.get(date),
+              ema.get(date),
+              macd.macd().get(date),
+              macd.signal().get(date)));
     }
 
-    /** Reserves a price request and its per-stock attempt in one transaction. */
-    public boolean tryStartDailySync(String symbol) throws SQLException {
-        try (Connection connection = connect()) {
-            boolean originalAutoCommit = connection.getAutoCommit();
-            int originalIsolation = connection.getTransactionIsolation();
+    return rows;
+  }
 
-            connection.setTransactionIsolation(
-                    Connection.TRANSACTION_READ_COMMITTED
-            );
-            connection.setAutoCommit(false);
+  /** Reserves a price request and its per-stock attempt in one transaction. */
+  public boolean tryStartDailySync(String symbol) throws SQLException {
+    try (Connection connection = connect()) {
+      boolean originalAutoCommit = connection.getAutoCommit();
+      int originalIsolation = connection.getTransactionIsolation();
 
-            try {
-                // Serialize reservations across stocks and application instances.
-                // Hold the provider row lock until the new reservation is committed.
-                int requestLimit;
+      connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+      connection.setAutoCommit(false);
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+      try {
+        // Serialize reservations across stocks and application instances.
+        // Hold the provider row lock until the new reservation is committed.
+        int requestLimit;
+
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                    """
                         SELECT request_limit
                         FROM api_budget_state
                         WHERE provider = 'alpha-vantage'
                         FOR UPDATE
                         """);
-                    ResultSet result = statement.executeQuery()) {
+            ResultSet result = statement.executeQuery()) {
 
-                    if (!result.next()) {
-                        throw new SQLException(
-                                "Alpha Vantage budget is not configured."
-                        );
-                    }
+          if (!result.next()) {
+            throw new SQLException("Alpha Vantage budget is not configured.");
+          }
 
-                    requestLimit = result.getInt("request_limit");
-                }
+          requestLimit = result.getInt("request_limit");
+        }
 
-                long reservedRequests;
-                long symbolAttempts;
+        long reservedRequests;
+        long symbolAttempts;
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                """
                         SELECT COUNT(*) AS total_requests,
                             COUNT(*) FILTER (WHERE symbol = ?) AS symbol_attempts
                         FROM api_request_reservations
@@ -271,26 +257,28 @@ public class DatabaseService {
                             clock_timestamp() - INTERVAL '24 hours'
                         """)) {
 
-                    statement.setString(1, symbol);
+          statement.setString(1, symbol);
 
-                    try (ResultSet result = statement.executeQuery()) {
-                        result.next();
+          try (ResultSet result = statement.executeQuery()) {
+            result.next();
 
-                        reservedRequests = result.getLong("total_requests");
-                        symbolAttempts = result.getLong("symbol_attempts");
-                    }
-                }
+            reservedRequests = result.getLong("total_requests");
+            symbolAttempts = result.getLong("symbol_attempts");
+          }
+        }
 
-                if (reservedRequests >= requestLimit || symbolAttempts >= 3) {
-                    connection.rollback();
-                    return false;
-                }
+        if (reservedRequests >= requestLimit || symbolAttempts >= 3) {
+          connection.rollback();
+          return false;
+        }
 
-                // An unfinished attempt can retry after an hour, including after a crash.
-                // The shared budget and three-attempt limit still apply.
-                boolean dailyAttemptReserved;
+        // An unfinished attempt can retry after an hour, including after a crash.
+        // The shared budget and three-attempt limit still apply.
+        boolean dailyAttemptReserved;
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                """
                             INSERT INTO stock_sync_status (
                                 symbol,
                                 last_attempt_at,
@@ -320,19 +308,21 @@ public class DatabaseService {
                             RETURNING symbol
                         """)) {
 
-                    statement.setString(1, symbol);
+          statement.setString(1, symbol);
 
-                    try (ResultSet result = statement.executeQuery()) {
-                        dailyAttemptReserved = result.next();
-                    }
-                }
+          try (ResultSet result = statement.executeQuery()) {
+            dailyAttemptReserved = result.next();
+          }
+        }
 
-                if (!dailyAttemptReserved) {
-                    connection.rollback();
-                    return false;
-                }
+        if (!dailyAttemptReserved) {
+          connection.rollback();
+          return false;
+        }
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                """
                         INSERT INTO api_request_reservations (
                             provider,
                             symbol,
@@ -341,62 +331,61 @@ public class DatabaseService {
                         VALUES ('alpha-vantage', ?, clock_timestamp())
                         """)) {
 
-                    statement.setString(1, symbol);
-                    statement.executeUpdate();
-                }
-
-                connection.commit();
-                return true;
-
-            } catch (SQLException | RuntimeException e) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollbackError) {
-                    e.addSuppressed(rollbackError);
-                }
-
-                throw e;
-
-            } finally {
-                connection.setAutoCommit(originalAutoCommit);
-                connection.setTransactionIsolation(originalIsolation);
-            }
+          statement.setString(1, symbol);
+          statement.executeUpdate();
         }
-    }
 
-    public void markDailySyncSuccessful(String symbol) throws SQLException {
-        final String sql = """
+        connection.commit();
+        return true;
+
+      } catch (SQLException | RuntimeException e) {
+        try {
+          connection.rollback();
+        } catch (SQLException rollbackError) {
+          e.addSuppressed(rollbackError);
+        }
+
+        throw e;
+
+      } finally {
+        connection.setAutoCommit(originalAutoCommit);
+        connection.setTransactionIsolation(originalIsolation);
+      }
+    }
+  }
+
+  public void markDailySyncSuccessful(String symbol) throws SQLException {
+    final String sql =
+        """
                 UPDATE stock_sync_status
                 SET last_success_at = clock_timestamp(), retry_allowed = FALSE
                 WHERE symbol = ?
                 """;
 
-        try (Connection connection = connect();
-            PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, symbol);
+    try (Connection connection = connect();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
+      statement.setString(1, symbol);
 
-            if (statement.executeUpdate() != 1) {
-                throw new SQLException(
-                        "Kein Sync-Status vorhanden für: " + symbol);
-            }
-        }
+      if (statement.executeUpdate() != 1) {
+        throw new SQLException("Kein Sync-Status vorhanden für: " + symbol);
+      }
+    }
+  }
+
+  private boolean validateData(
+      String symbol, String date, double open, double high, double low, double close, long volume) {
+    if (symbol == null || symbol.isEmpty()) return false;
+    if (open < 0 || high < 0 || low < 0 || close < 0) return false;
+    return !(high < low);
+  }
+
+  public Map<String, List<StockChange>> getWinnersAndLosers(int amount) {
+    if (amount < 1) {
+      throw new IllegalArgumentException();
     }
 
-    private boolean validateData
-            (String symbol,String date, double open, double high,
-             double low, double close, long volume)
-    {
-        if (symbol == null || symbol.isEmpty()) return false;
-        if (open < 0 || high < 0 || low < 0 || close < 0) return false;
-        return !(high < low);
-    }
-
-    public Map<String, List<StockChange>> getWinnersAndLosers(int amount) {
-        if (amount < 1) {
-            throw new IllegalArgumentException();
-        }
-
-        final String sql = """
+    final String sql =
+        """
                 WITH ranked_prices AS (
                     SELECT
                         symbol,
@@ -421,111 +410,104 @@ public class DatabaseService {
                   AND close >= 0
                 """;
 
-        List<StockChange> winners = new ArrayList<>();
-        List<StockChange> losers = new ArrayList<>();
+    List<StockChange> winners = new ArrayList<>();
+    List<StockChange> losers = new ArrayList<>();
 
-        try (Connection connection = connect();
-            PreparedStatement statement = connection.prepareStatement(sql);
-            ResultSet result = statement.executeQuery()) {
+    try (Connection connection = connect();
+        PreparedStatement statement = connection.prepareStatement(sql);
+        ResultSet result = statement.executeQuery()) {
 
-            while (result.next()) {
-                String symbol = result.getString("symbol");
-                double percentageRate = result.getDouble("percentage_rate");
+      while (result.next()) {
+        String symbol = result.getString("symbol");
+        double percentageRate = result.getDouble("percentage_rate");
 
-                if (!Double.isFinite(percentageRate)) {
-                    continue;
-                }
-
-                StockChange change = new StockChange(
-                        symbol,
-                        percentageRate,
-                        result.getDate("date").toLocalDate(),
-                        symbol,
-                        ""
-                );
-
-                if (percentageRate > 0) {
-                    winners.add(change);
-                } else if (percentageRate < 0) {
-                    losers.add(change);
-                }
-            }
-
-        } catch (SQLException e) {
-            throw new IllegalStateException(
-                    "Failed to load winners and loosers", e
-            );
+        if (!Double.isFinite(percentageRate)) {
+          continue;
         }
 
-        winners.sort(
-                Comparator.comparingDouble(StockChange::getPercentageRate)
-                        .reversed()
-                        .thenComparing(StockChange::getSymbol)
-        );
+        StockChange change =
+            new StockChange(
+                symbol, percentageRate, result.getDate("date").toLocalDate(), symbol, "");
 
-        losers.sort(
-                Comparator.comparingDouble(StockChange::getPercentageRate)
-                        .thenComparing(StockChange::getSymbol)
-        );
+        if (percentageRate > 0) {
+          winners.add(change);
+        } else if (percentageRate < 0) {
+          losers.add(change);
+        }
+      }
 
-        return Map.of(
-                "winners", winners.stream().limit(amount).toList(),
-                "losers", losers.stream().limit(amount).toList()
-        );
+    } catch (SQLException e) {
+      throw new IllegalStateException("Failed to load winners and loosers", e);
     }
 
-    public boolean tryReserveNewsRequest(String symbol) throws SQLException {
-        try (Connection connection = connect()) {
-            boolean originalAutoCommit = connection.getAutoCommit();
-            int originalIsolation = connection.getTransactionIsolation();
+    winners.sort(
+        Comparator.comparingDouble(StockChange::getPercentageRate)
+            .reversed()
+            .thenComparing(StockChange::getSymbol));
 
-            connection.setTransactionIsolation(
-                    Connection.TRANSACTION_READ_COMMITTED
-            );
-            connection.setAutoCommit(false);
+    losers.sort(
+        Comparator.comparingDouble(StockChange::getPercentageRate)
+            .thenComparing(StockChange::getSymbol));
 
-            try {
-                // Lock before counting so concurrent news requests cannot overspend.
-                int limit;
+    return Map.of(
+        "winners", winners.stream().limit(amount).toList(),
+        "losers", losers.stream().limit(amount).toList());
+  }
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+  public boolean tryReserveNewsRequest(String symbol) throws SQLException {
+    try (Connection connection = connect()) {
+      boolean originalAutoCommit = connection.getAutoCommit();
+      int originalIsolation = connection.getTransactionIsolation();
+
+      connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+      connection.setAutoCommit(false);
+
+      try {
+        // Lock before counting so concurrent news requests cannot overspend.
+        int limit;
+
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                    """
                         SELECT request_limit
                         FROM api_budget_state
                         WHERE provider = 'marketaux'
                         FOR UPDATE
                         """);
-                    ResultSet result = statement.executeQuery()) {
+            ResultSet result = statement.executeQuery()) {
 
-                    if (!result.next()) {
-                        throw new SQLException(
-                                "Marketaux budget is not configured."
-                        );
-                    }
+          if (!result.next()) {
+            throw new SQLException("Marketaux budget is not configured.");
+          }
 
-                    limit = result.getInt("request_limit");
-                }
+          limit = result.getInt("request_limit");
+        }
 
-                long reserved;
+        long reserved;
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                    """
                         SELECT COUNT(*)
                         FROM api_request_reservations
                         WHERE provider = 'marketaux'
                         AND reserved_at >
                             clock_timestamp() - INTERVAL '24 hours'
                         """);
-                    ResultSet result = statement.executeQuery()) {
+            ResultSet result = statement.executeQuery()) {
 
-                    result.next();
-                    reserved = result.getLong(1);
-                }
+          result.next();
+          reserved = result.getLong(1);
+        }
 
-                if (reserved >= limit) {
-                    connection.rollback();
-                    return false;
-                }
+        if (reserved >= limit) {
+          connection.rollback();
+          return false;
+        }
 
-                try (PreparedStatement statement = connection.prepareStatement("""
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                """
                         INSERT INTO api_request_reservations (
                             provider,
                             symbol,
@@ -534,32 +516,33 @@ public class DatabaseService {
                         VALUES ('marketaux', ?, clock_timestamp())
                         """)) {
 
-                    statement.setString(1, symbol);
-                    statement.executeUpdate();
-                }
-
-                connection.commit();
-                return true;
-
-            } catch (SQLException | RuntimeException e) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollbackError) {
-                    e.addSuppressed(rollbackError);
-                }
-
-                throw e;
-
-            } finally {
-                connection.setAutoCommit(originalAutoCommit);
-                connection.setTransactionIsolation(originalIsolation);
-            }
+          statement.setString(1, symbol);
+          statement.executeUpdate();
         }
-    }
 
-    // Keep the budget reservation: the provider may still count a failed request.
-    public void markDailySyncFailed(String symbol) throws SQLException {
-        String sql = """
+        connection.commit();
+        return true;
+
+      } catch (SQLException | RuntimeException e) {
+        try {
+          connection.rollback();
+        } catch (SQLException rollbackError) {
+          e.addSuppressed(rollbackError);
+        }
+
+        throw e;
+
+      } finally {
+        connection.setAutoCommit(originalAutoCommit);
+        connection.setTransactionIsolation(originalIsolation);
+      }
+    }
+  }
+
+  // Keep the budget reservation: the provider may still count a failed request.
+  public void markDailySyncFailed(String symbol) throws SQLException {
+    String sql =
+        """
                 UPDATE stock_sync_status
                 SET retry_allowed = TRUE
                 WHERE symbol = ?
@@ -570,38 +553,33 @@ public class DatabaseService {
                 )
                 """;
 
-        try (Connection connection = connect();
-            PreparedStatement statement = connection.prepareStatement(sql)) {
+    try (Connection connection = connect();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setString(1, symbol);
+      statement.setString(1, symbol);
 
-            if (statement.executeUpdate() != 1) {
-                throw new SQLException(
-                        "Could not record failed import for: " + symbol
-                );
-            }
-        }
+      if (statement.executeUpdate() != 1) {
+        throw new SQLException("Could not record failed import for: " + symbol);
+      }
+    }
+  }
+
+  public record DataStatus(
+      String symbol,
+      long priceCount,
+      LocalDate latestPriceDate,
+      OffsetDateTime lastAttemptAt,
+      OffsetDateTime lastSuccessAt) {}
+
+  public List<DataStatus> getDataStatus(List<String> symbols) {
+    if (symbols.isEmpty()) {
+      return List.of();
     }
 
-    public record DataStatus(
-            String symbol,
-            long priceCount,
-            LocalDate latestPriceDate,
-            OffsetDateTime lastAttemptAt,
-            OffsetDateTime lastSuccessAt) {
-    }
+    String placeholders = String.join(", ", Collections.nCopies(symbols.size(), "(?)"));
 
-    public List<DataStatus> getDataStatus(List<String> symbols) {
-        if (symbols.isEmpty()) {
-            return List.of();
-        }
-
-        String placeholders = String.join(
-                ", ",
-                Collections.nCopies(symbols.size(), "(?)")
-        );
-
-        String sql = """
+    String sql =
+        """
                 WITH tracked(symbol) AS (
                     VALUES %s
                 ),
@@ -621,53 +599,54 @@ public class DatabaseService {
                 LEFT JOIN stock_sync_status sync
                     ON sync.symbol = tracked.symbol
                 ORDER BY tracked.symbol
-                """.formatted(placeholders);
+                """
+            .formatted(placeholders);
 
-        List<DataStatus> result = new ArrayList<>();
+    List<DataStatus> result = new ArrayList<>();
 
-        try (Connection connection = connect();
-            PreparedStatement statement = connection.prepareStatement(sql)) {
+    try (Connection connection = connect();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            for (int index = 0; index < symbols.size(); index++) {
-                statement.setString(index + 1, symbols.get(index));
-            }
+      for (int index = 0; index < symbols.size(); index++) {
+        statement.setString(index + 1, symbols.get(index));
+      }
 
-            try (ResultSet rows = statement.executeQuery()) {
-                while (rows.next()) {
-                    result.add(new DataStatus(
-                            rows.getString("symbol"),
-                            rows.getLong("price_count"),
-                            rows.getObject("latest_price_date", LocalDate.class),
-                            rows.getObject("last_attempt_at", OffsetDateTime.class),
-                            rows.getObject("last_success_at", OffsetDateTime.class)
-                    ));
-                }
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Could not load data status.", e);
+      try (ResultSet rows = statement.executeQuery()) {
+        while (rows.next()) {
+          result.add(
+              new DataStatus(
+                  rows.getString("symbol"),
+                  rows.getLong("price_count"),
+                  rows.getObject("latest_price_date", LocalDate.class),
+                  rows.getObject("last_attempt_at", OffsetDateTime.class),
+                  rows.getObject("last_success_at", OffsetDateTime.class)));
         }
-
-        return result;
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException("Could not load data status.", e);
     }
 
-    public record ImportBudgetStatus(
-            String provider,
-            int requestLimit,
-            long reservedRequests,
-            long remainingRequests,
-            String window)
-    { }
+    return result;
+  }
 
-    public ImportBudgetStatus getImportBudgetStatus() {
-        return getBudgetStatus("alpha-vantage");
-    }
+  public record ImportBudgetStatus(
+      String provider,
+      int requestLimit,
+      long reservedRequests,
+      long remainingRequests,
+      String window) {}
 
-    public ImportBudgetStatus getNewsBudgetStatus() {
-        return getBudgetStatus("marketaux");
-    }
+  public ImportBudgetStatus getImportBudgetStatus() {
+    return getBudgetStatus("alpha-vantage");
+  }
 
-    private ImportBudgetStatus getBudgetStatus(String provider) {
-        final String sql = """
+  public ImportBudgetStatus getNewsBudgetStatus() {
+    return getBudgetStatus("marketaux");
+  }
+
+  private ImportBudgetStatus getBudgetStatus(String provider) {
+    final String sql =
+        """
                 SELECT
                     budget.request_limit,
                     COUNT(reservation.id) AS reserved_requests
@@ -680,40 +659,34 @@ public class DatabaseService {
                 GROUP BY budget.provider, budget.request_limit
                 """;
 
-        try (Connection connection = connect();
-            PreparedStatement statement = connection.prepareStatement(sql)) {
+    try (Connection connection = connect();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setString(1, provider);
+      statement.setString(1, provider);
 
-            try (ResultSet result = statement.executeQuery()) {
-                if (!result.next()) {
-                    throw new IllegalStateException(
-                            "Budget is not configured for " + provider
-                    );
-                }
-
-                int limit = result.getInt("request_limit");
-                long reserved = result.getLong("reserved_requests");
-
-                return new ImportBudgetStatus(
-                        provider,
-                        limit,
-                        reserved,
-                        Math.max(0L, limit - reserved),
-                        "rolling_24_hours"
-                );
-            }
-
-        } catch (SQLException e) {
-            throw new IllegalStateException(
-                    "Could not load budget for " + provider,
-                    e
-            );
+      try (ResultSet result = statement.executeQuery()) {
+        if (!result.next()) {
+          throw new IllegalStateException("Budget is not configured for " + provider);
         }
+
+        int limit = result.getInt("request_limit");
+        long reserved = result.getLong("reserved_requests");
+
+        return new ImportBudgetStatus(
+            provider, limit, reserved, Math.max(0L, limit - reserved), "rolling_24_hours");
+      }
+
+    } catch (SQLException e) {
+      throw new IllegalStateException("Could not load budget for " + provider, e);
     }
+  }
 
-
-    public record SharePrice(String symbol, String date, Double open,
-            Double high, Double low, Double close, Long volume)
-    { }
+  public record SharePrice(
+      String symbol,
+      String date,
+      Double open,
+      Double high,
+      Double low,
+      Double close,
+      Long volume) {}
 }

@@ -1,6 +1,7 @@
 import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
 plugins {
+    id("com.diffplug.spotless") version "8.10.4"
     java
     id("org.springframework.boot") version "4.1.1"
 }
@@ -87,5 +88,14 @@ springBoot {
                 )
             )
         }
+    }
+}
+
+spotless {
+    java {
+        target("src/**/*.java")
+        googleJavaFormat("1.28.0")
+        trimTrailingWhitespace()
+        endWithNewline()
     }
 }

@@ -1,7 +1,4 @@
 package io.github.vnic03.profitpilot.database;
 
-public record MarketIndicators
-        (String date, double sma, double rsi, double ema, double macd,double signalLine)
-{
-
-}
+public record MarketIndicators(
+    String date, double sma, double rsi, double ema, double macd, double signalLine) {}

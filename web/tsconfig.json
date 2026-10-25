@@ -17,14 +17,7 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "noEmit": true,
-    "types": [
-      "vite/client",
-      "vitest/globals",
-      "node"
-    ]
+    "types": ["vite/client", "vitest/globals", "node"]
   },
-  "include": [
-    "src",
-    "vite.config.ts"
-  ]
+  "include": ["src", "vite.config.ts"]
 }

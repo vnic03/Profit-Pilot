@@ -15,20 +15,18 @@ import org.springframework.security.web.SecurityFilterChain;
 @Profile("dev")
 public class DevSecurityConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(DevSecurityConfig.class);
+  private static final Logger log = LoggerFactory.getLogger(DevSecurityConfig.class);
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        log.info("Load DevSecurityConfig. . .");
+  @Bean
+  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    log.info("Load DevSecurityConfig. . .");
 
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/**").permitAll()
-                        .anyRequest().authenticated())
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable);
+    http.csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(
+            auth -> auth.requestMatchers("/api/**").permitAll().anyRequest().authenticated())
+        .httpBasic(AbstractHttpConfigurer::disable)
+        .formLogin(AbstractHttpConfigurer::disable);
 
-        return http.build();
-    }
+    return http.build();
+  }
 }
