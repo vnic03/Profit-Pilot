@@ -1,13 +1,15 @@
 # Profit Pilot
 
-A self-hosted dashboard for exploring stock prices, technical indicators, and company news.
+Looks like music software. Runs on market data. Explore stocks through synchronized charts, adjustable indicators, and a timeline you can grab.
 
 [Website](https://profit-pilot.trade) · [Development guide](doc/development.md) · [Frontend](web/README.md) · [License](LICENSE)
 
 ## What it does
 
 - Explore daily prices and trading volume for ten US-listed companies.
+- Find companies in a searchable symbol browser and save favorites locally in your browser.
 - Compare SMA, EMA, RSI, and MACD indicators against stored price history.
+- Select a shared chart time range using session presets, date inputs, or an expandable timeline with draggable handles.
 - See price movements across the tracked companies and read related news.
 - Export calculated indicators as ARFF files for analysis in tools such as Weka.
 
@@ -17,16 +19,9 @@ Prices are shown in USD. This is a research tool using daily data, not a live tr
 
 ## Screenshots
 
-![Profit Pilot dashboard](assets/screenshots/dashboard.png)
+![Profit Pilot analysis interface with symbol browser, price chart, and indicator lanes](assets/screenshots/main.png)
 
-![Stock analysis with technical indicators](assets/screenshots/indicators.png)
-
-<details>
-<summary>News</summary>
-
-![News section](assets/screenshots/news.png)
-
-</details>
+![Profit Pilot company news view](assets/screenshots/news.png)
 
 ## Try it
 
@@ -63,6 +58,7 @@ The production build packages the frontend inside the Spring Boot JAR. A systemd
 | Frontend | React, TypeScript, Vite, Recharts, Sass |
 | Storage | PostgreSQL |
 | Tests | JUnit, Vitest, React Testing Library |
+| Formatting | Prettier, Spotless with google-java-format |
 | Hosting | Raspberry Pi 5, systemd, Cloudflare Access and Tunnel |
 
 ## Working on the project
@@ -70,6 +66,20 @@ The production build packages the frontend inside the Spring Boot JAR. A systemd
 The [development guide](doc/development.md) covers database setup, local configuration, startup, testing, and Pi deployment.
 
 The [frontend README](web/README.md) explains the UI source layout and frontend-specific development tools.
+
+Apply the shared formatting rules from the repository root:
+
+```bash
+npm --prefix web run format
+./gradlew spotlessApply
+```
+
+Check formatting without changing files:
+
+```bash
+npm --prefix web run format:check
+./gradlew spotlessCheck
+```
 
 ```text
 web/                                        React frontend
