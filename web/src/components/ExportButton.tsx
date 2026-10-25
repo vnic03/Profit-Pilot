@@ -79,7 +79,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({symbol}) => {
     };
 
     return (
-        <div>
+        <div className="export-control">
             <button
                 type="button"
                 onClick={download}
@@ -88,13 +88,16 @@ const ExportButton: React.FC<ExportButtonProps> = ({symbol}) => {
             >
                 {loading
                     ? `Preparing ${symbol} export...`
-                    : `Download ${symbol} indicators (.arff)`}
+                    : "EXPORT .ARFF"}
             </button>
 
-            <p>
-                Export settings: SMA 20, EMA 20, RSI 14,
-                MACD 12/26/9. Independent of chart settings.
-            </p>
+            <details>
+                <summary>Export settings</summary>
+                <p>
+                    SMA 20 / EMA 20 / RSI 14 / MACD 12/26/9.
+                    Independent of chart settings; exports stored history.
+                </p>
+            </details>
 
             {error && <p role="alert">{error}</p>}
             {message && <p role="status">{message}</p>}

@@ -80,7 +80,7 @@ test("uses the symbol and company name returned by the backend", async () => {
     render(<StockAnalysis refreshVersion={0}/>);
 
     expect(
-        await screen.findByRole("option", {
+        await screen.findByRole("button", {
             name: "DEMO — Demo Company"
         })
     ).toBeInTheDocument();
@@ -88,7 +88,12 @@ test("uses the symbol and company name returned by the backend", async () => {
     await screen.findByText("No stored prices available for DEMO.");
 
     expect(loadPrices).toHaveBeenCalledWith("DEMO");
-    expect(screen.getByRole("combobox")).toHaveValue("DEMO");
+
+    expect(
+        screen.getByRole("button", {
+            name: "DEMO — Demo Company"
+        })
+    ).toHaveAttribute("aria-pressed", "true");
 });
 
 test("retries catalog loading after a failure", async () => {
@@ -122,4 +127,76 @@ test("an empty catalog does not trigger price requests", async () => {
     ).toBeInTheDocument();
 
     expect(loadPrices).not.toHaveBeenCalled();
+});
+
+test("searches by company and selects a different symbol", async () => {
+    loadStocks.mockResolvedValue([
+        testStock,
+        {...testStock, symbol: "NEXT", name: "Second Company"}
+    ]);
+
+    render(<StockAnalysis refreshVersion={0}/>);
+
+    await screen.findByText("No stored prices available for DEMO.");
+
+    fireEvent.change(screen.getByRole("searchbox"), {
+        target: {value: "Second"}
+    });
+
+    expect(
+        screen.queryByRole("button", {
+            name: "DEMO — Demo Company"
+        })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "NEXT — Second Company"
+        })
+    );
+
+    await screen.findByText("No stored prices available for NEXT.");
+
+    expect(loadPrices).toHaveBeenLastCalledWith("NEXT");
+});
+
+test("favorite filtering retains the active selection", async () => {
+    localStorage.clear();
+    loadStocks.mockResolvedValue([testStock]);
+
+    render(<StockAnalysis refreshVersion={0}/>);
+
+    await screen.findByText("No stored prices available for DEMO.");
+
+    fireEvent.click(
+        screen.getByRole("button", {name: "Favorite DEMO"})
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {name: "FAVORITES"})
+    );
+
+    expect(
+        screen.getByRole("button", {
+            name: "DEMO — Demo Company"
+        })
+    ).toHaveAttribute("aria-pressed", "true");
+
+    expect(
+        JSON.parse(
+            localStorage.getItem("profit-pilot:favorites:v1") ?? "[]"
+        )
+    ).toEqual(["DEMO"]);
+
+    fireEvent.click(
+        screen.getByRole("button", {name: "Favorite DEMO"})
+    );
+
+    expect(
+        screen.getByText("No matching symbols.")
+    ).toBeInTheDocument();
+
+    expect(
+        screen.getByRole("heading", {name: "DEMO"})
+    ).toBeInTheDocument();
 });

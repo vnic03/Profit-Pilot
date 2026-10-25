@@ -1,155 +1,180 @@
-import React, {useCallback, useMemo, useState} from "react";
-
+import {useMemo, useState} from "react";
 import {
     Bar,
     Brush,
     CartesianGrid,
+    Cell,
     ComposedChart,
-    Legend,
     Line,
-    LineChart,
     ReferenceLine,
     ResponsiveContainer,
     Tooltip,
     XAxis,
     YAxis
 } from "recharts";
-
-import "./StockChart.scss";
-
-import ChartControls from "./ChartControls";
-import type {SeriesKey} from "./ChartControls";
+import ChartControls, {type SeriesKey} from "./ChartControls";
 import type {FinancialSymbolData} from "../../stock-analysis/StockAnalysis";
-
-import {
-    getEMA,
-    getRSI,
-    getSMA
-} from "../../../service/financeService";
-
+import {getEMA, getRSI, getSMA} from "../../../service/financeService";
 import {useIndicator} from "../../../service/useIndicator";
+import TimeWindow, {type TimeSelection} from "./TimeWindow";
 
-interface StockChartProps {
+interface Props {
     symbol: string;
     symbolData: FinancialSymbolData;
 }
 
-interface ChartData {
-    date: string;
-    close: number;
-    open?: number;
-    low?: number;
-    high?: number;
-    volume?: number;
-    SMA?: number;
-    EMA?: number;
-    RSI?: number;
-    MACD?: number;
-    signal?: number;
-    histogram?: number;
-}
+const colors = {
+    close: "#F0C75E",
+    open: "#B6C4D0",
+    high: "#E3E7EB",
+    low: "#F08074",
+    SMA: "#77B8D0",
+    EMA: "#D3B5D8",
+    RSI: "#F08074",
+    MACD: "#77B8D0",
+    signal: "#F08074",
+    volume: "#77B8D0"
+};
 
-type HistoryRange = "20" | "60" | "all";
+const margin = {top: 10, right: 20, left: 0, bottom: 0};
+const tick = {fill: "#A5B1BD", fontSize: 11};
 
-const StockChart: React.FC<StockChartProps> = React.memo(({
-    symbol,
-    symbolData
-}) => {
-    const [smaPeriod, setSmaPeriod] = useState(14);
-    const [emaPeriod, setEmaPeriod] = useState(14);
+const numberLabel = (value: number) =>
+    value.toLocaleString("en-US", {maximumFractionDigits: 2});
+
+export default function StockChart({symbol, symbolData}: Props) {
+    const [smaPeriod, setSmaPeriod] = useState(20);
+    const [emaPeriod, setEmaPeriod] = useState(20);
     const [rsiPeriod, setRsiPeriod] = useState(14);
 
     const sma = useIndicator(symbol, smaPeriod, getSMA);
     const ema = useIndicator(symbol, emaPeriod, getEMA);
     const rsi = useIndicator(symbol, rsiPeriod, getRSI);
 
-    const [range, setRange] = useState<HistoryRange>("all");
-    const [chartVersion, setChartVersion] = useState(0);
+    const [selection, setSelection] = useState<{
+        startIndex: number;
+        endIndex: number;
+    } | null>(null);
 
-    const [visibleData, setVisibleData] = useState<
-        Record<SeriesKey, boolean>
-    >({
+    const [visible, setVisible] = useState<Record<SeriesKey, boolean>>({
         close: true,
+        open: false,
         high: false,
         low: false,
-        open: false,
-        volume: false,
-        SMA: false,
+        SMA: true,
         EMA: false,
-        RSI: false,
-        MACD: false
+        RSI: true,
+        MACD: true,
+        volume: false
     });
 
-    // Join by date, not position: indicators omit their early warm-up sessions.
-    const data: ChartData[] = useMemo(() => {
-        return Object.keys(symbolData.closePrices)
+    const data = useMemo(
+        () => Object.keys(symbolData.closePrices)
             .sort()
             .map(date => ({
                 date,
                 close: symbolData.closePrices[date],
-                high: symbolData.high?.[date],
-                low: symbolData.low?.[date],
-                open: symbolData.open?.[date],
-                volume: symbolData.volume?.[date],
+                open: symbolData.open[date],
+                high: symbolData.high[date],
+                low: symbolData.low[date],
+                volume: symbolData.volume[date],
                 SMA: sma.data[date],
                 EMA: ema.data[date],
                 RSI: rsi.data[date],
-                MACD: symbolData.macd?.[date],
-                signal: symbolData.macdSignal?.[date],
-                histogram: symbolData.macdHistogram?.[date]
-            }));
-    }, [symbolData, sma.data, ema.data, rsi.data]);
+                MACD: symbolData.macd[date],
+                signal: symbolData.macdSignal[date],
+                histogram: symbolData.macdHistogram[date]
+            })),
+        [symbolData, sma.data, ema.data, rsi.data]
+    );
 
-    // Trim only the display; indicators still use the full stored price history.
-    const chartData = range === "all"
-        ? data
-        : data.slice(-Number(range));
+    const windowData = selection
+        ? data.slice(selection.startIndex, selection.endIndex + 1)
+        : data;
 
-    const anySeriesVisible = Object.values(visibleData).some(Boolean);
+    const syncId = `signal-${symbol}`;
 
-    const firstDate = data[0]?.date;
-    const latestDate = data[data.length - 1]?.date;
+    const priceKeys = [
+        "close", "open", "high", "low", "SMA", "EMA"
+    ] as const;
 
-    const chartKey = `${symbol}:${range}:${chartVersion}`;
-    const syncId = `stock-${symbol}`;
+    const axes = (kind: "price" | "rsi" | "macd" | "volume") => (
+        <>
+            <CartesianGrid stroke="#2B3743" vertical={false}/>
 
-    const toggleDataSeries = useCallback((name: SeriesKey) => {
-        setVisibleData(current => ({
-            ...current,
-            [name]: !current[name]
-        }));
-    }, []);
+            <XAxis
+                dataKey="date"
+                tick={tick}
+                stroke="#465361"
+                minTickGap={45}
+                tickFormatter={(date: string) => date.slice(5)}
+                height={28}
+            />
+
+            <YAxis
+                width={66}
+                tick={tick}
+                stroke="#465361"
+                tickLine={false}
+                axisLine={false}
+                domain={
+                    kind === "rsi"
+                        ? [0, 100]
+                        : kind === "volume"
+                            ? [0, "auto"]
+                            : ["auto", "auto"]
+                }
+                ticks={
+                    kind === "rsi"
+                        ? [0, 30, 50, 70, 100]
+                        : undefined
+                }
+                tickFormatter={
+                    kind === "volume"
+                        ? value => `${numberLabel(Number(value) / 1e6)}M`
+                        : numberLabel
+                }
+            />
+
+            <Tooltip
+                cursor={{
+                    stroke: "#A5B1BD",
+                    strokeDasharray: "4 4"
+                }}
+                contentStyle={{
+                    background: "#252A30",
+                    border: "1px solid #465361",
+                    fontSize: 12
+                }}
+                labelStyle={{color: "#E3E7EB"}}
+                formatter={(value: number) => numberLabel(value)}
+            />
+        </>
+    );
+
+    const line = (key: keyof typeof colors, label: string) => (
+        <Line
+            key={key}
+            type="linear"
+            dataKey={key}
+            name={label}
+            stroke={colors[key]}
+            strokeWidth={1.6}
+            dot={false}
+            activeDot={{r: 3}}
+            connectNulls={false}
+            isAnimationActive={false}
+        />
+    );
 
     return (
         <div className="chart-container">
-            <div className="data-status">
-                <h2>{symbol}</h2>
-
-                {latestDate ? (
-                    <>
-                        <p>
-                            Latest stored close:{" "}
-                            <time dateTime={latestDate}>
-                                {latestDate}
-                            </time>
-                        </p>
-
-                        <p>
-                            {data.length} stored trading days
-                            {" · "}
-                            {firstDate} to {latestDate}
-                        </p>
-
-                        <p>Daily prices. Not live quotes.</p>
-                    </>
-                ) : (
-                    <p>No stored prices available for this symbol.</p>
-                )}
-            </div>
-
             <ChartControls
-                visible={visibleData}
-                onToggle={toggleDataSeries}
+                visible={visible}
+                onToggle={key => setVisible(current => ({
+                    ...current,
+                    [key]: !current[key]
+                }))}
                 smaPeriod={smaPeriod}
                 emaPeriod={emaPeriod}
                 rsiPeriod={rsiPeriod}
@@ -158,339 +183,194 @@ const StockChart: React.FC<StockChartProps> = React.memo(({
                 onRsiChange={setRsiPeriod}
             />
 
-            <div className="chart-range-controls">
-                <label htmlFor={`chart-range-${symbol}`}>
-                    Show history
-                </label>
+            <TimeWindow
+                data={data}
+                selection={selection}
+                onChange={setSelection}
+            />
 
-                <select
-                    id={`chart-range-${symbol}`}
-                    value={range}
-                    onChange={event => {
-                        setRange(event.target.value as HistoryRange);
-                        setChartVersion(value => value + 1);
-                    }}
-                >
-                    <option value="20">
-                        Latest 20 stored sessions
-                    </option>
-                    <option value="60">
-                        Latest 60 stored sessions
-                    </option>
-                    <option value="all">
-                        All stored sessions
-                    </option>
-                </select>
-
-                <button
-                    type="button"
-                    onClick={() => {
-                        setRange("all");
-                        setChartVersion(value => value + 1);
-                    }}
-                >
-                    Reset view
-                </button>
-            </div>
-
-            <p className="chart-range-description">
-                Selected history: {chartData.length} stored sessions
-                {chartData.length > 0 && (
-                    <>
-                        {" · "}
-                        {chartData[0].date} to{" "}
-                        {chartData[chartData.length - 1].date}
-                    </>
-                )}
-                . Drag the handles below the chart to narrow the view.
-            </p>
-
-            {!anySeriesVisible && (
-                <p role="status">
-                    Choose a price series or indicator to display.
-                </p>
-            )}
-
-            {[
-                {name: "SMA", visible: visibleData.SMA, state: sma},
-                {name: "EMA", visible: visibleData.EMA, state: ema},
-                {name: "RSI", visible: visibleData.RSI, state: rsi}
-            ].map(({name, visible, state}) => (
-                visible && (
-                    <div key={name}>
+            {([
+                {key: "SMA", state: sma},
+                {key: "EMA", state: ema},
+                {key: "RSI", state: rsi}
+            ] as const).map(({key, state}) => (
+                visible[key] && (
+                    <div key={key}>
                         {state.loading && (
-                            <p role="status">Loading {name}...</p>
+                            <p className="indicator-notice" role="status">
+                                Loading {key}...
+                            </p>
                         )}
 
                         {state.error && (
-                            <div role="alert">
-                                <p>{name}: {state.error}</p>
-
+                            <div className="indicator-notice" role="alert">
+                                {key}: {state.error}
                                 {state.canRetry && (
-                                    <button
-                                        type="button"
-                                        onClick={state.retry}
-                                    >
-                                        Retry {name}
+                                    <button onClick={state.retry}>
+                                        Retry {key}
                                     </button>
                                 )}
                             </div>
                         )}
 
                         {state.empty && (
-                            <p role="status">
-                                Not enough stored prices to calculate {name}
-                                {" "}with this period.
+                            <p className="indicator-notice" role="status">
+                                {key}: insufficient stored history for this period.
                             </p>
                         )}
                     </div>
                 )
             ))}
 
-            <ResponsiveContainer width="100%" height={360}>
-                <LineChart
-                    key={chartKey}
-                    data={chartData}
-                    syncId={syncId}
-                    margin={{top: 12, right: 8, left: 0, bottom: 5}}
-                    accessibilityLayer
-                >
-                    <CartesianGrid strokeDasharray="3 3"/>
+            <section
+                className="chart-lane price-lane"
+                aria-label="Price chart"
+            >
+                <div className="lane-label">
+                    PRICE <span>{symbol}</span>
+                </div>
 
-                    <XAxis
-                        dataKey="date"
-                        minTickGap={28}
-                        tick={{fontSize: 11}}
-                        tickFormatter={(value: string) => value.slice(5)}
-                    />
+                {!priceKeys.some(key => visible[key]) && (
+                    <p role="status">
+                        Select a price series or moving average.
+                    </p>
+                )}
 
-                    <YAxis
-                        yAxisId="price"
-                        domain={["auto", "auto"]}
-                        tickFormatter={(value: number) => value.toFixed(2)}
-                    />
-
-                    <YAxis
-                        yAxisId="volume"
-                        orientation="right"
-                        hide={!visibleData.volume}
-                        tickFormatter={(value: number) =>
-                            `${(value / 1e6).toFixed(2)}M`
-                        }
-                    />
-
-                    <Tooltip/>
-                    <Legend/>
-
-                    <Line
-                        yAxisId="price"
-                        type="linear"
-                        dataKey="close"
-                        stroke="#8884d8"
-                        name="Close"
-                        dot={false}
-                        hide={!visibleData.close}
-                        isAnimationActive={false}
-                    />
-
-                    <Line
-                        yAxisId="price"
-                        type="linear"
-                        dataKey="high"
-                        stroke="#82ca9d"
-                        name="High"
-                        dot={false}
-                        hide={!visibleData.high}
-                        isAnimationActive={false}
-                    />
-
-                    <Line
-                        yAxisId="price"
-                        type="linear"
-                        dataKey="low"
-                        stroke="#ffc658"
-                        name="Low"
-                        dot={false}
-                        hide={!visibleData.low}
-                        isAnimationActive={false}
-                    />
-
-                    <Line
-                        yAxisId="price"
-                        type="linear"
-                        dataKey="open"
-                        stroke="#ff7300"
-                        name="Open"
-                        dot={false}
-                        hide={!visibleData.open}
-                        isAnimationActive={false}
-                    />
-
-                    <Line
-                        yAxisId="volume"
-                        type="linear"
-                        dataKey="volume"
-                        stroke="#555555"
-                        name="Volume"
-                        dot={false}
-                        hide={!visibleData.volume}
-                        isAnimationActive={false}
-                    />
-
-                    <Line
-                        yAxisId="price"
-                        type="linear"
-                        dataKey="SMA"
-                        stroke="#9467bd"
-                        name={`SMA (${smaPeriod})`}
-                        dot={false}
-                        connectNulls={false}
-                        hide={!visibleData.SMA}
-                        isAnimationActive={false}
-                    />
-
-                    <Line
-                        yAxisId="price"
-                        type="linear"
-                        dataKey="EMA"
-                        stroke="#8c564b"
-                        name={`EMA (${emaPeriod})`}
-                        dot={false}
-                        connectNulls={false}
-                        hide={!visibleData.EMA}
-                        isAnimationActive={false}
-                    />
-
-                    <Brush
-                        dataKey="date"
-                        height={30}
-                        stroke="#8884d8"
-                    />
-                </LineChart>
-            </ResponsiveContainer>
-
-            {visibleData.RSI && (
-                <section aria-label="RSI chart">
-                    <h3>RSI ({rsiPeriod})</h3>
-
-                    <ResponsiveContainer width="100%" height={220}>
-                        <LineChart
-                            key={chartKey}
-                            data={chartData}
+                <div className="price-plot">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                            data={windowData}
                             syncId={syncId}
-                            margin={{top: 12, right: 8, left: 0, bottom: 5}}
+                            syncMethod="value"
+                            margin={margin}
                             accessibilityLayer
                         >
-                            <CartesianGrid strokeDasharray="3 3"/>
+                            {axes("price")}
 
-                            <XAxis
-                                dataKey="date"
-                                minTickGap={28}
-                                tick={{fontSize: 11}}
-                                tickFormatter={(value: string) =>
-                                    value.slice(5)
-                                }
-                            />
+                            {priceKeys
+                                .filter(key => visible[key])
+                                .map(key => line(key, key.toUpperCase()))}
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </section>
 
-                            <YAxis
-                                domain={[0, 100]}
-                                ticks={[0, 30, 50, 70, 100]}
-                            />
+            {visible.RSI && (
+                <section className="chart-lane" aria-label="RSI chart">
+                    <div className="lane-label coral">
+                        RSI [{rsiPeriod}] <span>30 / 70</span>
+                    </div>
 
-                            <Tooltip/>
+                    <ResponsiveContainer width="100%" height={150}>
+                        <ComposedChart
+                            data={windowData}
+                            syncId={syncId}
+                            syncMethod="value"
+                            margin={margin}
+                            accessibilityLayer
+                        >
+                            {axes("rsi")}
 
                             <ReferenceLine
                                 y={30}
-                                stroke="#888888"
-                                strokeDasharray="4 4"
+                                stroke={colors.RSI}
+                                strokeDasharray="5 5"
                             />
 
                             <ReferenceLine
                                 y={70}
-                                stroke="#888888"
-                                strokeDasharray="4 4"
+                                stroke={colors.RSI}
+                                strokeDasharray="5 5"
                             />
 
-                            <Line
-                                type="linear"
-                                dataKey="RSI"
-                                stroke="#d62728"
-                                name={`RSI (${rsiPeriod})`}
-                                dot={false}
-                                connectNulls={false}
-                                isAnimationActive={false}
-                            />
-                        </LineChart>
+                            {line("RSI", `RSI (${rsiPeriod})`)}
+                        </ComposedChart>
                     </ResponsiveContainer>
                 </section>
             )}
 
-            {visibleData.MACD && (
-                <section aria-label="MACD chart">
-                    <h3>MACD (12, 26, 9)</h3>
+            {visible.MACD && (
+                <section className="chart-lane" aria-label="MACD chart">
+                    <div className="lane-label blue">
+                        MACD [12/26/9]
+                        <span>BLUE / MACD · CORAL / SIGNAL</span>
+                    </div>
 
-                    <ResponsiveContainer width="100%" height={250}>
+                    <ResponsiveContainer width="100%" height={150}>
                         <ComposedChart
-                            key={chartKey}
-                            data={chartData}
+                            data={windowData}
                             syncId={syncId}
-                            margin={{top: 12, right: 8, left: 0, bottom: 5}}
+                            syncMethod="value"
+                            margin={margin}
                             accessibilityLayer
                         >
-                            <CartesianGrid strokeDasharray="3 3"/>
-
-                            <XAxis
-                                dataKey="date"
-                                minTickGap={28}
-                                tick={{fontSize: 11}}
-                                tickFormatter={(value: string) =>
-                                    value.slice(5)
-                                }
-                            />
-
-                            <YAxis
-                                domain={["auto", "auto"]}
-                                tickFormatter={(value: number) =>
-                                    value.toFixed(2)
-                                }
-                            />
-
-                            <Tooltip/>
-                            <Legend/>
-                            <ReferenceLine y={0} stroke="#888888"/>
+                            {axes("macd")}
+                            <ReferenceLine y={0} stroke="#465361"/>
 
                             <Bar
                                 dataKey="histogram"
                                 name="Histogram"
-                                fill="#94a3b8"
                                 isAnimationActive={false}
-                            />
+                            >
+                                {windowData.map(row => (
+                                    <Cell
+                                        key={row.date}
+                                        fill={
+                                            (row.histogram ?? 0) < 0
+                                                ? colors.signal
+                                                : colors.MACD
+                                        }
+                                    />
+                                ))}
+                            </Bar>
 
-                            <Line
-                                type="linear"
-                                dataKey="MACD"
-                                stroke="#e377c2"
-                                name="MACD"
-                                dot={false}
-                                connectNulls={false}
-                                isAnimationActive={false}
-                            />
+                            {line("MACD", "MACD")}
+                            {line("signal", "Signal (9)")}
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </section>
+            )}
 
-                            <Line
-                                type="linear"
-                                dataKey="signal"
-                                stroke="#2563eb"
-                                name="Signal (9)"
-                                dot={false}
-                                connectNulls={false}
+            {visible.volume && (
+                <section className="chart-lane" aria-label="Volume chart">
+                    <div className="lane-label blue">
+                        VOLUME <span>SHARES / MILLIONS</span>
+                    </div>
+
+                    <ResponsiveContainer width="100%" height={140}>
+                        <ComposedChart
+                            data={windowData}
+                            syncId={syncId}
+                            syncMethod="value"
+                            margin={margin}
+                            accessibilityLayer
+                        >
+                            {axes("volume")}
+
+                            <Bar
+                                dataKey="volume"
+                                name="Volume"
+                                fill={colors.volume}
                                 isAnimationActive={false}
                             />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </section>
             )}
+
+            <details className="chart-help">
+                <summary>Signal reference</summary>
+                <p>
+                    SMA / EMA use stored closing prices.
+                    Periods: 1–50 sessions. RSI: 0–100.
+                    MACD: 12/26/9.
+                    Missing initial indicator values are calculation warm-up.
+                    Volume has its own scale.
+                    The time window applies to every lane;
+                    indicators are calculated from the full stored history.
+                    Daily data, not live quotes.
+                </p>
+            </details>
         </div>
     );
-});
-
-export default StockChart;
+}

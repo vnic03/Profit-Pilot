@@ -1,193 +1,149 @@
-import React, {useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import "./App.css";
-import Navbar from "./components/navbar/Navbar";
-import MarketMovers, {
-    WinnersAndLosers
-} from "./components/market-movers/MarketMovers";
+import Navbar, {type View} from "./components/navbar/Navbar";
 import StockAnalysis from "./components/stock-analysis/StockAnalysis";
-import {getWinnersAndLosers} from "./service/financeService";
-import News from "./components/news/News";
+import MarketMovers, {
+    type WinnersAndLosers
+} from "./components/market-movers/MarketMovers";
 import DataStatus from "./components/DataStatus";
+import News from "./components/news/News";
+import {getWinnersAndLosers} from "./service/financeService";
 import type {Stock} from "./service/useStockCatalog";
 
-
-interface MoversResult {
-    key: string;
-    data: WinnersAndLosers | null;
-    error: string | null;
-}
-
-function App() {
-    const [refreshVersion, setRefreshVersion] = useState(0);
-    const [retryVersion, setRetryVersion] = useState(0);
+function Movers({refreshVersion}: {refreshVersion: number}) {
     const [amount, setAmount] = useState(5);
-    const [result, setResult] = useState<MoversResult | null>(null);
-    const [newsStock, setNewsStock] = useState<Stock | null>(null);
+    const [retry, setRetry] = useState(0);
+    const [result, setResult] = useState<{
+        key: string;
+        data?: WinnersAndLosers;
+        error?: string;
+    } | null>(null);
 
-    const requestKey = `${amount}:${refreshVersion}:${retryVersion}`;
+    const key = `${amount}:${refreshVersion}:${retry}`;
 
     useEffect(() => {
         let cancelled = false;
 
-        const loadMovers = async () => {
-            try {
-                const data: WinnersAndLosers =
-                    await getWinnersAndLosers(amount + 1);
-
-                if (!cancelled) {
-                    setResult({key: requestKey, data, error: null});
-                }
-            } catch {
+        getWinnersAndLosers(amount + 1).then(
+            (data: WinnersAndLosers) => {
+                if (!cancelled) setResult({key, data});
+            },
+            () => {
                 if (!cancelled) {
                     setResult({
-                        key: requestKey,
-                        data: null,
-                        error: "Could not load market movers. Please try again."
+                        key,
+                        error: "Could not load market movers."
                     });
                 }
             }
-        };
-
-        void loadMovers();
+        );
 
         return () => {
             cancelled = true;
         };
-    }, [amount, requestKey]);
+    }, [amount, key]);
 
-    const current = result?.key === requestKey ? result : null;
+    const current = result?.key === key ? result : null;
 
     return (
-        <div className="app-shell">
+        <section aria-labelledby="movers-title">
+            <h1 id="movers-title">Market movements</h1>
+
+            {!current && (
+                <p role="status">Loading market movers...</p>
+            )}
+
+            {current?.error && (
+                <div role="alert">
+                    <p>{current.error}</p>
+                    <button onClick={() => setRetry(value => value + 1)}>
+                        Retry market movers
+                    </button>
+                </div>
+            )}
+
+            {current?.data && (
+                current.data.winners.length + current.data.losers.length === 0
+                    ? <p>No market movers available.</p>
+                    : <MarketMovers
+                        movers={{
+                            winners: current.data.winners.slice(0, amount),
+                            losers: current.data.losers.slice(0, amount)
+                        }}
+                        hasMore={
+                            current.data.winners.length > amount
+                            || current.data.losers.length > amount
+                        }
+                        handleLoadMore={() => setAmount(value => value + 5)}
+                    />
+            )}
+        </section>
+    );
+}
+
+export default function App() {
+    const [view, setView] = useState<View>("analysis");
+    const [refreshVersion, setRefreshVersion] = useState(0);
+    const [stock, setStock] = useState<Stock | null>(null);
+
+    return (
+        <div className="instrument">
             <a className="skip-link" href="#main-content">
                 Skip to content
             </a>
 
-            <Navbar/>
+            <Navbar view={view} onNavigate={setView}/>
 
-            <main id="main-content" className="app-main" tabIndex={-1}>
-                <header id="overview" className="page-header">
-                    <div>
-                        <p className="eyebrow">Research workspace</p>
-                        <h1>Your market overview</h1>
-                        <p className="page-intro">
-                            Explore price history, compare indicators
-                            and export your research.
-                        </p>
-                    </div>
-
-                    <div className="refresh-controls">
-                        <button
-                            type="button"
-                            className="primary-button"
-                            onClick={() => setRefreshVersion(value => value + 1)}
-                            aria-describedby="reload-description"
-                        >
-                            Reload stored data
-                        </button>
-                        <p id="reload-description">
-                            Reloads saved data. Does not import new prices.
-                        </p>
-                    </div>
-                </header>
-
-                <section
-                    id="analysis"
-                    className="dashboard-panel"
-                    aria-labelledby="analysis-title"
-                >
-                    <div className="panel-heading">
-                        <div>
-                            <p className="eyebrow">01 / Explore</p>
-                            <h2 id="analysis-title">Stock analysis</h2>
-                        </div>
-                        <span className="subtle-badge">Daily prices</span>
-                    </div>
-
+            <main id="main-content" tabIndex={-1}>
+                {/* Preserve chart settings when switching views. */}
+                <div hidden={view !== "analysis"}>
                     <StockAnalysis
                         refreshVersion={refreshVersion}
-                        onStockChange={setNewsStock}
+                        onStockChange={setStock}
                     />
-                </section>
+                </div>
 
-                <section
-                    id="movers"
-                    className="dashboard-panel"
-                    aria-labelledby="movers-title"
-                >
-                    <div className="panel-heading">
-                        <div>
-                            <p className="eyebrow">02 / Compare</p>
-                            <h2 id="movers-title">Price movements</h2>
-                        </div>
+                {view === "movers" && (
+                    <div className="utility-view">
+                        <Movers refreshVersion={refreshVersion}/>
                     </div>
+                )}
 
-                    {!current && (
-                        <p role="status">Loading market movers...</p>
-                    )}
+                {view === "data" && (
+                    <div className="utility-view">
+                        <DataStatus refreshVersion={refreshVersion}/>
+                    </div>
+                )}
 
-                    {current?.error && (
-                        <div role="alert">
-                            <p>{current.error}</p>
-                            <button
-                                type="button"
-                                onClick={() => setRetryVersion(value => value + 1)}
-                            >
-                                Retry market movers
-                            </button>
-                        </div>
-                    )}
-
-                    {current?.data && (
-                        current.data.winners.length === 0
-                        && current.data.losers.length === 0 ? (
-                            <p>
-                                No market movers available. Stocks may have
-                                unchanged prices or insufficient stored history.
-                            </p>
-                        ) : (
-                            <MarketMovers
-                                movers={{
-                                    winners: current.data.winners.slice(0, amount),
-                                    losers: current.data.losers.slice(0, amount)
-                                }}
-                                hasMore={
-                                    current.data.winners.length > amount
-                                    || current.data.losers.length > amount
-                                }
-                                handleLoadMore={() => setAmount(value => value + 5)}
-                            />
-                        )
-                    )}
-                </section>
-
-                <section
-                    id="data-status"
-                    className="dashboard-panel"
-                    aria-label="Stored data coverage"
-                >
-                    <p className="eyebrow">03 / Verify</p>
-                    <DataStatus refreshVersion={refreshVersion}/>
-                </section>
-
-                <section
-                    id="news"
-                    className="dashboard-panel"
-                    aria-label="Market news"
-                >
-                    <p className="eyebrow">04 / Read</p>
-                    <News
-                         key={newsStock?.symbol ?? "no-stock"}
-                         stock={newsStock}
-                    />
-                </section>
-
-                <footer className="page-footer">
-                    Profit Pilot · Historical data for market research · Running on Raspberry Pi 5.
-                </footer>
+                {view === "news" && (
+                    <div className="utility-view">
+                        <News
+                            key={stock?.symbol ?? "none"}
+                            stock={stock}
+                        />
+                    </div>
+                )}
             </main>
+
+            <footer className="instrument-footer">
+                <span>STORED DAILY DATA</span>
+
+                <button
+                    aria-label="Reload stored data"
+                    title="Reload saved data; does not import new prices"
+                    onClick={() => setRefreshVersion(value => value + 1)}
+                >
+                    RELOAD
+                </button>
+
+                <a
+                    href="https://github.com/vnic03"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    BUILT BY NICO
+                </a>
+            </footer>
         </div>
     );
 }
-
-export default App;

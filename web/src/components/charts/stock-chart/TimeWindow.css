@@ -1,0 +1,236 @@
+.time-window {
+  padding: 12px 22px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.time-window-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+
+.time-window-title {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.time-presets {
+  display: flex;
+}
+
+.time-presets button {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.time-presets button[aria-pressed="true"] {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: #333127;
+}
+
+.time-window-count {
+  color: var(--blue);
+  font-size: 10px;
+}
+
+.time-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.time-dates label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.time-dates input {
+  width: 142px;
+  padding: 5px 7px;
+  font-size: 11px;
+}
+
+.time-dates input:focus {
+  border-color: var(--gold);
+}
+
+.time-track {
+  position: relative;
+  height: 64px;
+  margin: 0 12px;
+  background: var(--plot);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.time-track svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.time-mask {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(22 27 34 / 76%);
+  pointer-events: none;
+}
+
+.time-track .time-selection {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--blue);
+  background: rgb(119 184 208 / 10%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.time-track .time-selection:hover {
+  background: rgb(119 184 208 / 18%);
+}
+
+.time-track .time-handle {
+  position: absolute;
+  top: -1px;
+  width: 14px;
+  height: calc(100% + 2px);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--chassis);
+  border: 1px solid var(--blue);
+  color: var(--blue);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.time-handle--start {
+  transform: translateX(-100%);
+}
+
+.time-track .time-handle:hover,
+.time-track .time-handle:focus-visible {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: #3b3b32;
+  z-index: 2;
+}
+
+.time-track[data-dragging="true"] .time-selection {
+  border-color: var(--gold);
+  background: rgb(240 199 94 / 10%);
+  cursor: grabbing;
+}
+
+.time-ticks {
+  position: relative;
+  height: 20px;
+  margin: 5px 12px 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.time-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.time-ticks span:first-child {
+  transform: none;
+}
+
+.time-ticks span:last-child:not(:first-child) {
+  transform: translateX(-100%);
+}
+
+.time-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.time-error {
+  margin: 8px 0 0;
+  font-size: 11px;
+}
+
+/* Keep the controls separate from the optional overview. */
+.time-window-toolbar {
+  margin-bottom: 0;
+}
+
+.time-window-details {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.time-window-details > summary {
+  display: list-item;
+  width: fit-content;
+  padding: 8px 0 2px;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+  list-style-type: disclosure-closed;
+}
+
+.time-window-details[open] > summary {
+  list-style-type: disclosure-open;
+  margin-bottom: 12px;
+}
+
+.time-window-details > summary::marker {
+  color: var(--muted);
+}
+
+.time-window-details > summary:hover,
+.time-window-details > summary:hover::marker {
+  color: var(--gold);
+}
+
+.time-window-details .time-hint {
+  margin-top: 2px;
+}
+
+@media (max-width: 700px) {
+  .time-window {
+    padding: 12px 16px 10px;
+  }
+
+  .time-dates {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .time-dates label {
+    flex: 1;
+  }
+
+  .time-dates input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .time-track {
+    height: 72px;
+  }
+
+  .time-track .time-handle {
+    width: 20px;
+  }
+}

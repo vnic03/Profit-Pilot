@@ -31,14 +31,15 @@ beforeEach(() => {
     loadMovers.mockResolvedValue({winners: [], losers: []});
 });
 
-test("reload refreshes prices, data status and market movers", async () => {
+test("navigation preserves analysis and reload reaches each view", async () => {
     render(<App/>);
 
-    await screen.findByText(/No market movers available/);
-
     expect(screen.getByTestId("price-refresh")).toHaveTextContent("0");
-    expect(screen.getByTestId("status-refresh")).toHaveTextContent("0");
-    expect(loadMovers).toHaveBeenCalledTimes(1);
+    expect(loadMovers).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", {name: "movers"}));
+
+    await screen.findByText(/No market movers available/);
 
     fireEvent.click(
         screen.getByRole("button", {name: "Reload stored data"})
@@ -48,9 +49,14 @@ test("reload refreshes prices, data status and market movers", async () => {
         expect(loadMovers).toHaveBeenCalledTimes(2);
     });
 
-    await screen.findByText(/No market movers available/);
-
-    expect(screen.getByTestId("price-refresh")).toHaveTextContent("1");
-    expect(screen.getByTestId("status-refresh")).toHaveTextContent("1");
     expect(loadMovers).toHaveBeenLastCalledWith(6);
+    expect(screen.getByTestId("price-refresh")).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByRole("button", {name: "data"}));
+
+    expect(screen.getByTestId("status-refresh")).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByRole("button", {name: "analysis"}));
+
+    expect(screen.getByTestId("price-refresh")).toBeVisible();
 });

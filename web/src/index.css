@@ -1,30 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 :root {
-  color-scheme: light;
-  --page-bg: #f4f6f3;
-  --surface: #ffffff;
-  --text: #20332a;
-  --muted: #596b60;
-  --border: #dce4dd;
-  --accent: #246449;
-  --accent-hover: #194d36;
+  color-scheme: dark;
+  --chassis: #252a30;
+  --plot: #161b22;
+  --text: #e3e7eb;
+  --muted: #a5b1bd;
+  --border: #3b4753;
+  --gold: #f0c75e;
+  --blue: #77b8d0;
+  --coral: #f08074;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --mono: "IBM Plex Mono", monospace;
+
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--plot);
+  color: var(--text);
+  font-synthesis: none;
 }
 
 * {
   box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-  scroll-padding-top: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--plot);
 }
 
 body {
   margin: 0;
-  background: var(--page-bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -35,26 +39,41 @@ textarea {
 }
 
 button,
-a,
 input,
-select,
-textarea {
-  -webkit-tap-highlight-color: transparent;
+select {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 12px;
 }
 
-button:not(:disabled),
-select {
+button {
   cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #303a44;
 }
 
 button:disabled {
   cursor: wait;
-  opacity: 0.65;
+  opacity: .55;
 }
 
-:focus-visible {
-  outline: 3px solid #327857;
-  outline-offset: 3px;
+input,
+select {
+  background: var(--plot);
+  min-width: 0;
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+a {
+  color: var(--blue);
+  text-underline-offset: 4px;
 }
 
 h1,
@@ -67,15 +86,37 @@ p {
 h1,
 h2,
 h3 {
-  line-height: 1.25;
+  font-family: var(--display);
+  line-height: 1.05;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, monospace;
+h1,
+h2 {
+  font-size: 36px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
+h3 {
+  font-size: 25px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+[role="alert"] {
+  color: var(--coral);
+}
+
+[role="status"] {
+  color: var(--muted);
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--plot);
 }

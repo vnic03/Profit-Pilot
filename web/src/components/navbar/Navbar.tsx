@@ -1,45 +1,41 @@
-import React from "react";
-import "./navbar.scss";
+export type View = "analysis" | "movers" | "data" | "news";
 
-const Navbar: React.FC = () => (
-    <aside className="sidebar">
-        <a className="brand" href="#overview" aria-label="Profit Pilot overview">
-            <span className="brand-mark" aria-hidden="true">P</span>
-            <span>
-                <strong>Profit Pilot</strong>
-                <small>Market research</small>
-            </span>
-        </a>
+interface Props {
+    view: View;
+    onNavigate: (view: View) => void;
+}
 
-        <nav aria-label="Main navigation">
-            <p className="nav-caption">Workspace</p>
+const views: View[] = ["analysis", "movers", "data", "news"];
 
-            <a href="#analysis">Stock analysis</a>
-            <a href="#movers">Market movers</a>
-            <a href="#data-status">Data status</a>
-            <a href="#news">News</a>
-        </nav>
+export default function Navbar({view, onNavigate}: Props) {
+    return (
+        <header className="instrument-header">
+            <button
+                className="wordmark"
+                aria-label="Profit Pilot — analysis"
+                onClick={() => onNavigate("analysis")}
+            >
+                <span>PROFIT</span>
+                <span>PILOT</span>
+            </button>
 
-        <div className="sidebar-note">
-            <span className="sidebar-badge">Daily data</span>
-            <p>
-                Research based on stored closing prices.
-                Check each stock's latest price date.
-            </p>
+            <div className="instrument-label">
+                SIGNAL / ANALYSIS
+                <br/>
+                <span>PROFIT PILOT</span>
+            </div>
 
-            <p className="sidebar-credit">
-                Built by{" "}
-                <a
-                    href="https://github.com/vnic03"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    Nico (@vnic03)
-                </a>
-            </p>
-        </div>
-
-    </aside>
-);
-
-export default Navbar;
+            <nav aria-label="Main navigation">
+                {views.map(item => (
+                    <button
+                        key={item}
+                        aria-current={view === item ? "page" : undefined}
+                        onClick={() => onNavigate(item)}
+                    >
+                        {item}
+                    </button>
+                ))}
+            </nav>
+        </header>
+    );
+}
