@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Bar,
-  Brush,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -13,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import ChartControls, { type SeriesKey } from "./ChartControls";
-import type { FinancialSymbolData } from "../../stock-analysis/StockAnalysis";
+import type { FinancialSymbolData } from "../../../service/apiTypes";
 import { getEMA, getRSI, getSMA } from "../../../service/financeService";
 import { useIndicator } from "../../../service/useIndicator";
 import TimeWindow, { type TimeSelection } from "./TimeWindow";
@@ -46,10 +45,6 @@ export default function StockChart({ symbol, symbolData }: Props) {
   const [emaPeriod, setEmaPeriod] = useState(20);
   const [rsiPeriod, setRsiPeriod] = useState(14);
 
-  const sma = useIndicator(symbol, smaPeriod, getSMA);
-  const ema = useIndicator(symbol, emaPeriod, getEMA);
-  const rsi = useIndicator(symbol, rsiPeriod, getRSI);
-
   const [selection, setSelection] = useState<{
     startIndex: number;
     endIndex: number;
@@ -66,6 +61,10 @@ export default function StockChart({ symbol, symbolData }: Props) {
     MACD: true,
     volume: false,
   });
+
+  const sma = useIndicator(symbol, smaPeriod, getSMA, visible.SMA);
+  const ema = useIndicator(symbol, emaPeriod, getEMA, visible.EMA);
+  const rsi = useIndicator(symbol, rsiPeriod, getRSI, visible.RSI);
 
   const data = useMemo(
     () =>

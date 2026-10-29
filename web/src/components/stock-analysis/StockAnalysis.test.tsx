@@ -2,24 +2,11 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi, type Mock } from "vitest";
 import StockAnalysis from "./StockAnalysis";
-import {
-  getStocks,
-  getClosePrices,
-  getHigh,
-  getLow,
-  getOpen,
-  getVolume,
-  getMacdSeries,
-} from "../../service/financeService";
+import { getStocks, getChartData } from "../../service/financeService";
 
 vi.mock("../../service/financeService", () => ({
   getStocks: vi.fn(),
-  getClosePrices: vi.fn(),
-  getHigh: vi.fn(),
-  getLow: vi.fn(),
-  getOpen: vi.fn(),
-  getVolume: vi.fn(),
-  getMacdSeries: vi.fn(),
+  getChartData: vi.fn(),
 }));
 
 vi.mock("../charts/stock-chart/StockChart", () => ({
@@ -31,7 +18,7 @@ vi.mock("../ExportButton", () => ({
 }));
 
 const loadStocks = getStocks as Mock;
-const loadPrices = getClosePrices as Mock;
+const loadPrices = getChartData as Mock;
 
 const testStock = {
   symbol: "DEMO",
@@ -43,14 +30,15 @@ const testStock = {
 beforeEach(() => {
   vi.resetAllMocks();
 
-  for (const loader of [getClosePrices, getHigh, getLow, getOpen, getVolume]) {
-    (loader as Mock).mockResolvedValue({});
-  }
-
-  (getMacdSeries as Mock).mockResolvedValue({
+  loadPrices.mockResolvedValue({
+    closePrices: {},
+    high: {},
+    low: {},
+    open: {},
+    volume: {},
     macd: {},
-    signal: {},
-    histogram: {},
+    macdSignal: {},
+    macdHistogram: {},
   });
 });
 
@@ -77,7 +65,7 @@ test("uses the symbol and company name returned by the backend", async () => {
 
   await screen.findByText("No stored prices available for DEMO.");
 
-  expect(loadPrices).toHaveBeenCalledWith("DEMO");
+  expect(loadPrices).toHaveBeenCalledWith("DEMO", expect.any(AbortSignal));
 
   expect(
     screen.getByRole("button", {
@@ -102,7 +90,7 @@ test("retries catalog loading after a failure", async () => {
   await screen.findByText("No stored prices available for DEMO.");
 
   expect(loadStocks).toHaveBeenCalledTimes(2);
-  expect(loadPrices).toHaveBeenCalledWith("DEMO");
+  expect(loadPrices).toHaveBeenCalledWith("DEMO", expect.any(AbortSignal));
 });
 
 test("an empty catalog does not trigger price requests", async () => {
@@ -143,7 +131,7 @@ test("searches by company and selects a different symbol", async () => {
 
   await screen.findByText("No stored prices available for NEXT.");
 
-  expect(loadPrices).toHaveBeenLastCalledWith("NEXT");
+  expect(loadPrices).toHaveBeenLastCalledWith("NEXT", expect.any(AbortSignal));
 });
 
 test("favorite filtering retains the active selection", async () => {
@@ -171,4 +159,15 @@ test("favorite filtering retains the active selection", async () => {
   expect(screen.getByText("No matching symbols.")).toBeInTheDocument();
 
   expect(screen.getByRole("heading", { name: "DEMO" })).toBeInTheDocument();
+});
+
+test("aborts a pending chart request when unmounted", async () => {
+  loadStocks.mockResolvedValue([testStock]);
+  loadPrices.mockImplementation(() => new Promise(() => {}));
+  const { unmount } = render(<StockAnalysis refreshVersion={0} />);
+  await screen.findByText("Loading stored prices for DEMO...");
+  const signal = loadPrices.mock.calls[0][1] as AbortSignal;
+  expect(signal.aborted).toBe(false);
+  unmount();
+  expect(signal.aborted).toBe(true);
 });

@@ -19,29 +19,29 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableAutoConfiguration(exclude = UserDetailsServiceAutoConfiguration.class)
 public class ServerSecurityConfig {
 
-  @Bean
-  public SecurityFilterChain serverFilterChain(HttpSecurity http) throws Exception {
+    @Bean
+    public SecurityFilterChain serverFilterChain(HttpSecurity http) throws Exception {
 
-    // Hosted authentication belongs to Cloudflare Access.
-    // Keep the origin private; these GET rules do not authenticate visitors.
-    http.csrf(AbstractHttpConfigurer::disable)
-        .requestCache(AbstractHttpConfigurer::disable)
-        .httpBasic(AbstractHttpConfigurer::disable)
-        .formLogin(AbstractHttpConfigurer::disable)
-        .logout(AbstractHttpConfigurer::disable)
-        .sessionManagement(
-            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(
-            auth ->
-                auth.dispatcherTypeMatchers(DispatcherType.ERROR)
-                    .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/**")
-                    .permitAll()
-                    .requestMatchers(HttpMethod.HEAD, "/**")
-                    .permitAll()
-                    .anyRequest()
-                    .denyAll());
+        // Hosted authentication belongs to Cloudflare Access.
+        // Keep the origin private; these GET rules do not authenticate visitors.
+        http.csrf(AbstractHttpConfigurer::disable)
+                .requestCache(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(
+                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(
+                        auth ->
+                                auth.dispatcherTypeMatchers(DispatcherType.ERROR)
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/**")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.HEAD, "/**")
+                                        .permitAll()
+                                        .anyRequest()
+                                        .denyAll());
 
-    return http.build();
-  }
+        return http.build();
+    }
 }

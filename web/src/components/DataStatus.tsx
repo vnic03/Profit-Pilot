@@ -2,16 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getDataStatus } from "../service/financeService";
 import ImportBudget from "./ImportBudget";
 import OperationsStatus from "./OperationsStatus";
-
-interface StatusRow {
-  symbol: string;
-  priceCount: number;
-  latestPriceDate: string | null;
-  lastAttemptAt: string | null;
-  lastSuccessAt: string | null;
-  freshness: "CURRENT" | "BEHIND_REFERENCE" | "MISSING" | "FUTURE_DATE" | "CALENDAR_UNAVAILABLE";
-  referenceDate: string;
-}
+import type { StatusRow } from "../service/apiTypes";
 
 interface LoadResult {
   key: string;

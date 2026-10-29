@@ -5,15 +5,15 @@ import java.util.List;
 
 public record NewsApiResponse(List<NewsArticle> articles, Instant fetchedAt) {
 
-  public NewsApiResponse(List<NewsArticle> articles) {
-    this(articles, Instant.now());
-  }
+    public NewsApiResponse(List<NewsArticle> articles) {
+        this(articles, Instant.now());
+    }
 
-  public record NewsArticle(
-      String title,
-      String publicationDate,
-      String description,
-      String url,
-      String imageUrl,
-      String source) {}
+    public record NewsArticle(
+            String title,
+            String publicationDate,
+            String description,
+            String url,
+            String imageUrl,
+            String source) {}
 }

@@ -9,14 +9,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/news")
 public class NewsBudgetController {
 
-  private final DatabaseService database;
+    private final DatabaseService database;
 
-  public NewsBudgetController(DatabaseService database) {
-    this.database = database;
-  }
+    public NewsBudgetController(DatabaseService database) {
+        this.database = database;
+    }
 
-  @GetMapping("/budget")
-  public DatabaseService.ImportBudgetStatus getBudget() {
-    return database.getNewsBudgetStatus();
-  }
+    @GetMapping("/budget")
+    public DatabaseService.ImportBudgetStatus getBudget() {
+        return database.getNewsBudgetStatus();
+    }
 }

@@ -1,11 +1,9 @@
 package io.github.vnic03.profitpilot.controller;
 
-import io.github.vnic03.profitpilot.catalog.StockCatalog;
 import io.github.vnic03.profitpilot.database.ARFFConverter;
 import io.github.vnic03.profitpilot.database.DatabaseService;
 import io.github.vnic03.profitpilot.database.MarketIndicators;
 import java.util.List;
-import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
@@ -21,58 +19,47 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/finance")
 public class FinancialExportController {
 
-  private static final Logger logger = LoggerFactory.getLogger(FinancialExportController.class);
+    private static final Logger logger = LoggerFactory.getLogger(FinancialExportController.class);
 
-  private final DatabaseService database;
+    private final DatabaseService database;
 
-  public FinancialExportController(DatabaseService database) {
-    this.database = database;
-  }
-
-  public record ExportError(String code, String message) {}
-
-  @GetMapping("/export/{symbol}")
-  public ResponseEntity<?> downloadArff(@PathVariable("symbol") String symbol) {
-
-    String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
-
-    if (!StockCatalog.supports(normalizedSymbol)) {
-      return error(400, "unsupported_symbol", "This stock is not supported.");
+    public FinancialExportController(DatabaseService database) {
+        this.database = database;
     }
 
-    try {
-      List<MarketIndicators> rows = database.queryFinancialDataForSymbol(normalizedSymbol);
+    @GetMapping("/export/{symbol}")
+    public ResponseEntity<?> downloadArff(@PathVariable("symbol") String symbol) {
 
-      if (rows.isEmpty()) {
-        return error(422, "insufficient_data", "At least 34 stored daily prices are required.");
-      }
+        String normalizedSymbol = ApiSupport.requireSymbol(symbol);
 
-      byte[] content = ARFFConverter.toBytes(rows);
+        try {
+            List<MarketIndicators> rows = database.queryFinancialDataForSymbol(normalizedSymbol);
 
-      String disposition =
-          ContentDisposition.attachment()
-              .filename(normalizedSymbol + "-indicators.arff")
-              .build()
-              .toString();
+            if (rows.isEmpty()) {
+                return ApiSupport.error(
+                        422, "insufficient_data", "At least 34 stored daily prices are required.");
+            }
 
-      return ResponseEntity.ok()
-          .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
-          .header(HttpHeaders.CACHE_CONTROL, "no-store")
-          .contentType(MediaType.APPLICATION_OCTET_STREAM)
-          .contentLength(content.length)
-          .body(content);
+            byte[] content = ARFFConverter.toBytes(rows);
 
-    } catch (IllegalStateException e) {
-      logger.error("Could not export indicators for {}.", normalizedSymbol, e);
+            String disposition =
+                    ContentDisposition.attachment()
+                            .filename(normalizedSymbol + "-indicators.arff")
+                            .build()
+                            .toString();
 
-      return error(500, "export_failed", "Could not prepare the export. Please try again.");
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentLength(content.length)
+                    .body(content);
+
+        } catch (IllegalStateException e) {
+            logger.error("Could not export indicators for {}.", normalizedSymbol, e);
+
+            return ApiSupport.error(
+                    500, "export_failed", "Could not prepare the export. Please try again.");
+        }
     }
-  }
-
-  private ResponseEntity<ExportError> error(int status, String code, String message) {
-
-    return ResponseEntity.status(status)
-        .header(HttpHeaders.CACHE_CONTROL, "no-store")
-        .body(new ExportError(code, message));
-  }
 }

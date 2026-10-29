@@ -10,26 +10,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class AppStartUpRunner implements CommandLineRunner {
 
-  private static final Logger logger = LoggerFactory.getLogger(AppStartUpRunner.class);
+    private static final Logger logger = LoggerFactory.getLogger(AppStartUpRunner.class);
 
-  private final PriceImportService imports;
-  private final boolean syncOnStartup;
+    private final PriceImportService imports;
+    private final boolean syncOnStartup;
 
-  public AppStartUpRunner(
-      PriceImportService imports,
-      @Value("${profitpilot.sync.on-startup:false}") boolean syncOnStartup) {
+    public AppStartUpRunner(
+            PriceImportService imports,
+            @Value("${profitpilot.sync.on-startup:false}") boolean syncOnStartup) {
 
-    this.imports = imports;
-    this.syncOnStartup = syncOnStartup;
-  }
-
-  @Override
-  public void run(String... args) {
-    if (!syncOnStartup) {
-      logger.info("Startup price import is disabled.");
-      return;
+        this.imports = imports;
+        this.syncOnStartup = syncOnStartup;
     }
 
-    logger.info("Startup import result: {}", imports.runConfiguredImport());
-  }
+    @Override
+    public void run(String... args) {
+        if (!syncOnStartup) {
+            logger.info("Startup price import is disabled.");
+            return;
+        }
+
+        logger.info("Startup import result: {}", imports.runConfiguredImport());
+    }
 }

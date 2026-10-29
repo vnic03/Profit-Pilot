@@ -94,7 +94,7 @@ springBoot {
 spotless {
     java {
         target("src/**/*.java")
-        googleJavaFormat("1.28.0")
+        googleJavaFormat("1.28.0").aosp()
         trimTrailingWhitespace()
         endWithNewline()
     }

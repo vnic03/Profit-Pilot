@@ -12,26 +12,29 @@ interface IndicatorResult {
 
 const EMPTY_VALUES: Values = {};
 
-export function useIndicator(symbol: string, period: number, fetchIndicator: FetchIndicator) {
+export function useIndicator(
+  symbol: string,
+  period: number,
+  fetchIndicator: FetchIndicator,
+  enabled = true,
+) {
   const [result, setResult] = useState<IndicatorResult | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
 
   const key = `${symbol}:${period}:${retryVersion}`;
   const validPeriod = Number.isInteger(period) && period >= 1 && period <= 50;
+  const current = result?.key === key ? result : null;
 
   const retry = useCallback(() => {
     setRetryVersion((value) => value + 1);
   }, []);
 
   useEffect(() => {
-    if (!validPeriod) {
-      return;
-    }
+    if (!enabled || !validPeriod || current !== null) return;
 
     const controller = new AbortController();
 
-    // Wait for slider changes to settle before requesting another calculation.
-    const timer = window.setTimeout(async () => {
+    const load = async () => {
       try {
         const data = await fetchIndicator(symbol, period, controller.signal);
 
@@ -47,20 +50,16 @@ export function useIndicator(symbol: string, period: number, fetchIndicator: Fet
           });
         }
       }
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
     };
-  }, [symbol, period, key, validPeriod, fetchIndicator]);
 
-  // Never show values from the previous symbol or period while a request is pending.
-  const current = result?.key === key ? result : null;
+    void load();
+
+    return () => controller.abort();
+  }, [enabled, validPeriod, current, symbol, period, key, fetchIndicator]);
 
   return {
     data: validPeriod ? (current?.data ?? EMPTY_VALUES) : EMPTY_VALUES,
-    loading: validPeriod && current === null,
+    loading: enabled && validPeriod && current === null,
     error: validPeriod
       ? (current?.error ?? null)
       : "Period must be a whole number between 1 and 50.",

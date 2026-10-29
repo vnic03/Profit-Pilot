@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import Navbar, { type View } from "./components/navbar/Navbar";
 import StockAnalysis from "./components/stock-analysis/StockAnalysis";
-import MarketMovers, { type WinnersAndLosers } from "./components/market-movers/MarketMovers";
+import MarketMovers from "./components/market-movers/MarketMovers";
 import DataStatus from "./components/DataStatus";
 import News from "./components/news/News";
 import { getWinnersAndLosers } from "./service/financeService";
-import type { Stock } from "./service/useStockCatalog";
+import type { Stock, WinnersAndLosers } from "./service/apiTypes";
 
 function Movers({ refreshVersion }: { refreshVersion: number }) {
   const [amount, setAmount] = useState(5);

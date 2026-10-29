@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getStocks } from "./financeService";
-
-export interface Stock {
-  symbol: string;
-  name: string;
-  exchange: string;
-  currency: string;
-}
+import type { Stock } from "./apiTypes";
 
 interface CatalogResult {
   key: string;

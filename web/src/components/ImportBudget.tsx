@@ -1,14 +1,7 @@
 import React, { useEffect, useId, useState } from "react";
 import { getImportBudget } from "../service/financeService";
 import { getNewsBudget } from "../service/newsService";
-
-interface Budget {
-  provider: string;
-  requestLimit: number;
-  reservedRequests: number;
-  remainingRequests: number;
-  window: string;
-}
+import type { Budget } from "../service/apiTypes";
 
 interface LoadResult {
   key: string;

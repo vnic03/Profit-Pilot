@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/finance")
 public class StockCatalogController {
 
-  @GetMapping("/stocks")
-  public List<StockCatalog.Stock> getStocks() {
-    return StockCatalog.stocks();
-  }
+    @GetMapping("/stocks")
+    public List<StockCatalog.Stock> getStocks() {
+        return StockCatalog.stocks();
+    }
 }

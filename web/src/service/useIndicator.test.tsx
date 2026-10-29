@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { useIndicator } from "./useIndicator";
 
 type Values = Record<string, number>;
@@ -17,21 +17,10 @@ function deferred<T>() {
 }
 
 async function startRequest() {
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(250);
-  });
+  await act(async () => {});
 }
 
 describe("useIndicator", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.clearAllTimers();
-    vi.useRealTimers();
-  });
-
   test("invalid period does not trigger a request", async () => {
     const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({});
 
@@ -45,20 +34,39 @@ describe("useIndicator", () => {
     expect(result.current.error).toBe("Period must be a whole number between 1 and 50.");
   });
 
-  test("only the latest slider value is requested", async () => {
-    const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({});
+  test("loads only when enabled and reuses the completed result", async () => {
+    const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({ "2026-10-05": 42 });
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useIndicator("IBM", 20, fetcher, enabled),
+      { initialProps: { enabled: false } },
+    );
 
-    const { rerender } = renderHook(({ period }) => useIndicator("IBM", period, fetcher), {
-      initialProps: { period: 14 },
-    });
-
-    rerender({ period: 20 });
-    rerender({ period: 30 });
-
-    await startRequest();
-
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+    rerender({ enabled: true });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher).toHaveBeenCalledWith("IBM", 30, expect.any(AbortSignal));
+    await startRequest();
+    expect(result.current.data).toEqual({ "2026-10-05": 42 });
+
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    await startRequest();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  test("defers changed periods until enabled", async () => {
+    const fetcher = vi.fn<FetchIndicator>().mockResolvedValue({});
+    const { rerender } = renderHook(
+      ({ enabled, period }) => useIndicator("IBM", period, fetcher, enabled),
+      { initialProps: { enabled: true, period: 14 } },
+    );
+    await startRequest();
+    rerender({ enabled: false, period: 20 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    rerender({ enabled: true, period: 20 });
+    await startRequest();
+    expect(fetcher).toHaveBeenLastCalledWith("IBM", 20, expect.any(AbortSignal));
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   test("aborts old requests and ignores their late responses", async () => {

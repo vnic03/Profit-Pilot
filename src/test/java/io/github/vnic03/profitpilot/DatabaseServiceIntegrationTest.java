@@ -25,40 +25,40 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 @EnabledIfEnvironmentVariable(named = "PROFITPILOT_DB_TEST", matches = "true")
 class DatabaseServiceIntegrationTest {
 
-  private HikariDataSource dataSource;
-  private JdbcTemplate adminJdbc;
-  private JdbcTemplate jdbc;
-  private DatabaseService database;
-  private String testSchema;
+    private HikariDataSource dataSource;
+    private JdbcTemplate adminJdbc;
+    private JdbcTemplate jdbc;
+    private DatabaseService database;
+    private String testSchema;
 
-  @BeforeEach
-  void setUp() {
-    String url = requiredEnv("PROFITPILOT_TEST_DB_URL");
-    String username = requiredEnv("PROFITPILOT_TEST_DB_USER");
-    String password = requiredEnv("PROFITPILOT_TEST_DB_PASSWORD");
+    @BeforeEach
+    void setUp() {
+        String url = requiredEnv("PROFITPILOT_TEST_DB_URL");
+        String username = requiredEnv("PROFITPILOT_TEST_DB_USER");
+        String password = requiredEnv("PROFITPILOT_TEST_DB_PASSWORD");
 
-    var adminDataSource = new DriverManagerDataSource(url, username, password);
+        var adminDataSource = new DriverManagerDataSource(url, username, password);
 
-    adminJdbc = new JdbcTemplate(adminDataSource);
+        adminJdbc = new JdbcTemplate(adminDataSource);
 
-    testSchema = "profitpilot_test_" + UUID.randomUUID().toString().replace("-", "");
+        testSchema = "profitpilot_test_" + UUID.randomUUID().toString().replace("-", "");
 
-    adminJdbc.execute("CREATE SCHEMA " + testSchema);
+        adminJdbc.execute("CREATE SCHEMA " + testSchema);
 
-    HikariConfig config = new HikariConfig();
-    config.setJdbcUrl(url);
-    config.setUsername(username);
-    config.setPassword(password);
-    config.setSchema(testSchema);
-    config.setMaximumPoolSize(6);
-    config.setMinimumIdle(0);
-    config.setConnectionTimeout(10000);
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(url);
+        config.setUsername(username);
+        config.setPassword(password);
+        config.setSchema(testSchema);
+        config.setMaximumPoolSize(6);
+        config.setMinimumIdle(0);
+        config.setConnectionTimeout(10000);
 
-    dataSource = new HikariDataSource(config);
-    jdbc = new JdbcTemplate(dataSource);
+        dataSource = new HikariDataSource(config);
+        jdbc = new JdbcTemplate(dataSource);
 
-    jdbc.execute(
-        """
+        jdbc.execute(
+                """
                 CREATE TABLE aktienkurse (
                     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                     symbol VARCHAR(10) NOT NULL,
@@ -72,8 +72,8 @@ class DatabaseServiceIntegrationTest {
                 )
                 """);
 
-    jdbc.execute(
-        """
+        jdbc.execute(
+                """
                 CREATE TABLE stock_sync_status (
                     symbol VARCHAR(10) PRIMARY KEY,
                     last_attempt_at TIMESTAMPTZ,
@@ -81,95 +81,100 @@ class DatabaseServiceIntegrationTest {
                 )
                 """);
 
-    new ResourceDatabasePopulator(
-            new ClassPathResource("db/api-budget.sql"),
-            new ClassPathResource("db/price-import-retry.sql"),
-            new ClassPathResource("db/import-run-status.sql"))
-        .execute(dataSource);
+        new ResourceDatabasePopulator(
+                        new ClassPathResource("db/api-budget.sql"),
+                        new ClassPathResource("db/price-import-retry.sql"),
+                        new ClassPathResource("db/import-run-status.sql"))
+                .execute(dataSource);
 
-    database = new DatabaseService(dataSource);
-  }
+        database = new DatabaseService(dataSource);
+    }
 
-  @Test
-  void abandonedAttemptCanRecoverAfterCooldown() throws Exception {
-    assertTrue(database.tryStartDailySync("IBM"));
-    assertFalse(database.tryStartDailySync("IBM"));
-    ageLastAttempt("IBM");
-    assertTrue(new DatabaseService(dataSource).tryStartDailySync("IBM"));
-    assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
-  }
+    @Test
+    void abandonedAttemptCanRecoverAfterCooldown() throws Exception {
+        assertTrue(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("IBM"));
+        ageLastAttempt("IBM");
+        assertTrue(new DatabaseService(dataSource).tryStartDailySync("IBM"));
+        assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
+    }
 
-  @Test
-  void lastFinishedRunIsPersistedAndReplaced() {
-    var mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
-    var store = new io.github.vnic03.profitpilot.sync.ImportRunStore(jdbc, mapper);
-    assertNull(store.latest());
-    var report =
-        new io.github.vnic03.profitpilot.sync.PriceImportService.ImportReport(
-            io.github.vnic03.profitpilot.sync.PriceImportService.RunStatus.COMPLETED, 0, 0, 1, 0);
-    store.record(java.time.Instant.now(), report, java.util.Map.of("IBM", "FAILED"));
-    var recreated = new io.github.vnic03.profitpilot.sync.ImportRunStore(jdbc, mapper);
-    assertEquals("FAILED", recreated.latest().outcomes().get("IBM"));
-    store.record(java.time.Instant.now(), null, java.util.Map.of());
-    assertEquals("FAILED", recreated.latest().status());
-    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM import_run_status", Integer.class));
-  }
+    @Test
+    void lastFinishedRunIsPersistedAndReplaced() {
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
+        var store = new io.github.vnic03.profitpilot.sync.ImportRunStore(jdbc, mapper);
+        assertNull(store.latest());
+        var report =
+                new io.github.vnic03.profitpilot.sync.PriceImportService.ImportReport(
+                        io.github.vnic03.profitpilot.sync.PriceImportService.RunStatus.COMPLETED,
+                        0,
+                        0,
+                        1,
+                        0);
+        store.record(java.time.Instant.now(), report, java.util.Map.of("IBM", "FAILED"));
+        var recreated = new io.github.vnic03.profitpilot.sync.ImportRunStore(jdbc, mapper);
+        assertEquals("FAILED", recreated.latest().outcomes().get("IBM"));
+        store.record(java.time.Instant.now(), null, java.util.Map.of());
+        assertEquals("FAILED", recreated.latest().status());
+        assertEquals(
+                1, jdbc.queryForObject("SELECT COUNT(*) FROM import_run_status", Integer.class));
+    }
 
-  private void ageLastAttempt(String symbol) {
-    jdbc.update(
-        """
+    private void ageLastAttempt(String symbol) {
+        jdbc.update(
+                """
                 UPDATE stock_sync_status
                 SET last_attempt_at =
                     clock_timestamp() - INTERVAL '2 hours'
                 WHERE symbol = ?
                 """,
-        symbol);
-  }
-
-  @AfterEach
-  void tearDown() {
-    try {
-      if (dataSource != null) {
-        dataSource.close();
-      }
-    } finally {
-      if (adminJdbc != null && testSchema != null) {
-        adminJdbc.execute("DROP SCHEMA IF EXISTS " + testSchema + " CASCADE");
-      }
+                symbol);
     }
-  }
 
-  @Test
-  void dailyAttemptIsReservedOnceAndSuccessIsRecordedSeparately() throws Exception {
+    @AfterEach
+    void tearDown() {
+        try {
+            if (dataSource != null) {
+                dataSource.close();
+            }
+        } finally {
+            if (adminJdbc != null && testSchema != null) {
+                adminJdbc.execute("DROP SCHEMA IF EXISTS " + testSchema + " CASCADE");
+            }
+        }
+    }
 
-    assertTrue(database.tryStartDailySync("IBM"));
-    assertFalse(database.tryStartDailySync("IBM"));
+    @Test
+    void dailyAttemptIsReservedOnceAndSuccessIsRecordedSeparately() throws Exception {
 
-    assertEquals(
-        0,
-        jdbc.queryForObject(
-            """
+        assertTrue(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("IBM"));
+
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        """
                         SELECT COUNT(*)
                         FROM stock_sync_status
                         WHERE last_success_at IS NOT NULL
                         """,
-            Integer.class));
+                        Integer.class));
 
-    database.markDailySyncSuccessful("IBM");
+        database.markDailySyncSuccessful("IBM");
 
-    assertEquals(
-        1,
-        jdbc.queryForObject(
-            """
+        assertEquals(
+                1,
+                jdbc.queryForObject(
+                        """
                         SELECT COUNT(*)
                         FROM stock_sync_status
                         WHERE symbol = 'IBM'
                           AND last_success_at IS NOT NULL
                         """,
-            Integer.class));
+                        Integer.class));
 
-    jdbc.update(
-        """
+        jdbc.update(
+                """
                 UPDATE stock_sync_status
                 SET last_attempt_at = (
                     (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date - 1
@@ -177,280 +182,285 @@ class DatabaseServiceIntegrationTest {
                 WHERE symbol = 'IBM'
                 """);
 
-    assertTrue(database.tryStartDailySync("IBM"));
-    assertFalse(database.tryStartDailySync("IBM"));
-  }
+        assertTrue(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("IBM"));
+    }
 
-  @Test
-  void repeatedImportUpdatesExistingPriceWithoutCreatingDuplicate() {
-    database.insertSharePrice(List.of(price("IBM", 105.0)));
-    database.insertSharePrice(List.of(price("IBM", 107.0)));
+    @Test
+    void repeatedImportUpdatesExistingPriceWithoutCreatingDuplicate() {
+        database.insertSharePrice(List.of(price("IBM", 105.0)));
+        database.insertSharePrice(List.of(price("IBM", 107.0)));
 
-    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM aktienkurse", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM aktienkurse", Integer.class));
 
-    assertEquals(
-        107.0,
-        jdbc.queryForObject("SELECT close FROM aktienkurse WHERE symbol = 'IBM'", Double.class),
-        0.0001);
-  }
+        assertEquals(
+                107.0,
+                jdbc.queryForObject(
+                        "SELECT close FROM aktienkurse WHERE symbol = 'IBM'", Double.class),
+                0.0001);
+    }
 
-  @Test
-  void failedBatchRollsBackChangesAndPreservesExistingPrice() {
-    database.insertSharePrice(List.of(price("IBM", 105.0)));
+    @Test
+    void failedBatchRollsBackChangesAndPreservesExistingPrice() {
+        database.insertSharePrice(List.of(price("IBM", 105.0)));
 
-    assertThrows(
-        IllegalStateException.class,
-        () ->
-            database.insertSharePrice(
-                List.of(price("IBM", 109.0), price("SYMBOL_TOO_LONG", 106.0))));
+        assertThrows(
+                IllegalStateException.class,
+                () ->
+                        database.insertSharePrice(
+                                List.of(price("IBM", 109.0), price("SYMBOL_TOO_LONG", 106.0))));
 
-    assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM aktienkurse", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM aktienkurse", Integer.class));
 
-    assertEquals(
-        105.0,
-        jdbc.queryForObject("SELECT close FROM aktienkurse WHERE symbol = 'IBM'", Double.class),
-        0.0001);
-  }
+        assertEquals(
+                105.0,
+                jdbc.queryForObject(
+                        "SELECT close FROM aktienkurse WHERE symbol = 'IBM'", Double.class),
+                0.0001);
+    }
 
-  @Test
-  void exhaustedBudgetDoesNotRecordAnotherDailyAttempt() throws Exception {
-    jdbc.update(
-        """
+    @Test
+    void exhaustedBudgetDoesNotRecordAnotherDailyAttempt() throws Exception {
+        jdbc.update(
+                """
                 UPDATE api_budget_state
                 SET request_limit = 2
                 WHERE provider = 'alpha-vantage'
                 """);
 
-    assertTrue(database.tryStartDailySync("IBM"));
-    assertFalse(database.tryStartDailySync("IBM"));
-    assertTrue(database.tryStartDailySync("AAPL"));
-    assertFalse(database.tryStartDailySync("MSFT"));
+        assertTrue(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("IBM"));
+        assertTrue(database.tryStartDailySync("AAPL"));
+        assertFalse(database.tryStartDailySync("MSFT"));
 
-    assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
+        assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
 
-    assertEquals(
-        0,
-        jdbc.queryForObject(
-            """
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        """
                         SELECT COUNT(*)
                         FROM stock_sync_status
                         WHERE symbol = 'MSFT'
                         """,
-            Integer.class));
+                        Integer.class));
 
-    // Recreating the service must not reset the database budget.
-    DatabaseService recreatedService = new DatabaseService(dataSource);
+        // Recreating the service must not reset the database budget.
+        DatabaseService recreatedService = new DatabaseService(dataSource);
 
-    assertFalse(recreatedService.tryStartDailySync("AMZN"));
+        assertFalse(recreatedService.tryStartDailySync("AMZN"));
 
-    assertEquals(0L, recreatedService.getImportBudgetStatus().remainingRequests());
-  }
+        assertEquals(0L, recreatedService.getImportBudgetStatus().remainingRequests());
+    }
 
-  @Test
-  void oldReservationsStopConsumingBudget() throws Exception {
-    jdbc.update(
-        """
+    @Test
+    void oldReservationsStopConsumingBudget() throws Exception {
+        jdbc.update(
+                """
                 UPDATE api_budget_state
                 SET request_limit = 1
                 WHERE provider = 'alpha-vantage'
                 """);
 
-    assertTrue(database.tryStartDailySync("IBM"));
-    assertFalse(database.tryStartDailySync("AAPL"));
+        assertTrue(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("AAPL"));
 
-    jdbc.update(
-        """
+        jdbc.update(
+                """
                 UPDATE api_request_reservations
                 SET reserved_at = clock_timestamp() - INTERVAL '25 hours'
                 """);
 
-    assertTrue(database.tryStartDailySync("AAPL"));
+        assertTrue(database.tryStartDailySync("AAPL"));
 
-    assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
+        assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
 
-    // Expired entries remain available as history.
-    assertEquals(
-        2, jdbc.queryForObject("SELECT COUNT(*) FROM api_request_reservations", Integer.class));
-  }
+        // Expired entries remain available as history.
+        assertEquals(
+                2,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM api_request_reservations", Integer.class));
+    }
 
-  @Test
-  void failedReservationRollsBackTheDailyAttempt() {
-    jdbc.execute(
-        """
+    @Test
+    void failedReservationRollsBackTheDailyAttempt() {
+        jdbc.execute(
+                """
                 ALTER TABLE api_request_reservations
                 ADD CONSTRAINT reject_test_symbol
                 CHECK (symbol <> 'FAIL')
                 """);
 
-    assertThrows(SQLException.class, () -> database.tryStartDailySync("FAIL"));
+        assertThrows(SQLException.class, () -> database.tryStartDailySync("FAIL"));
 
-    assertEquals(
-        0,
-        jdbc.queryForObject(
-            """
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        """
                         SELECT COUNT(*)
                         FROM stock_sync_status
                         WHERE symbol = 'FAIL'
                         """,
-            Integer.class));
+                        Integer.class));
 
-    assertEquals(0L, database.getImportBudgetStatus().reservedRequests());
-  }
-
-  @Test
-  void concurrentReservationsCannotExceedTheSharedLimit() throws Exception {
-    var tasks = new ArrayList<Callable<Boolean>>();
-
-    for (int index = 0; index < 30; index++) {
-      String symbol = "T" + index;
-      tasks.add(() -> database.tryStartDailySync(symbol));
+        assertEquals(0L, database.getImportBudgetStatus().reservedRequests());
     }
 
-    int accepted = 0;
+    @Test
+    void concurrentReservationsCannotExceedTheSharedLimit() throws Exception {
+        var tasks = new ArrayList<Callable<Boolean>>();
 
-    try (var executor = Executors.newFixedThreadPool(6)) {
-      var results = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
-
-      for (var result : results) {
-        if (result.get()) {
-          accepted++;
+        for (int index = 0; index < 30; index++) {
+            String symbol = "T" + index;
+            tasks.add(() -> database.tryStartDailySync(symbol));
         }
-      }
+
+        int accepted = 0;
+
+        try (var executor = Executors.newFixedThreadPool(6)) {
+            var results = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
+
+            for (var result : results) {
+                if (result.get()) {
+                    accepted++;
+                }
+            }
+        }
+
+        assertEquals(25, accepted);
+
+        assertEquals(25L, database.getImportBudgetStatus().reservedRequests());
+
+        assertEquals(0L, database.getImportBudgetStatus().remainingRequests());
     }
 
-    assertEquals(25, accepted);
+    private DatabaseService.SharePrice price(String symbol, double close) {
+        return new DatabaseService.SharePrice(
+                symbol, "2026-10-05", 100.0, 110.0, 95.0, close, 1000L);
+    }
 
-    assertEquals(25L, database.getImportBudgetStatus().reservedRequests());
+    private String requiredEnv(String name) {
+        return Objects.requireNonNull(System.getenv(name), "Missing environment variable: " + name);
+    }
 
-    assertEquals(0L, database.getImportBudgetStatus().remainingRequests());
-  }
-
-  private DatabaseService.SharePrice price(String symbol, double close) {
-    return new DatabaseService.SharePrice(symbol, "2026-10-05", 100.0, 110.0, 95.0, close, 1000L);
-  }
-
-  private String requiredEnv(String name) {
-    return Objects.requireNonNull(System.getenv(name), "Missing environment variable: " + name);
-  }
-
-  @Test
-  void newsBudgetIsSeparatePersistentAndExpires() throws Exception {
-    jdbc.update(
-        """
+    @Test
+    void newsBudgetIsSeparatePersistentAndExpires() throws Exception {
+        jdbc.update(
+                """
                 UPDATE api_budget_state
                 SET request_limit = 1
                 WHERE provider = 'marketaux'
                 """);
 
-    assertTrue(database.tryReserveNewsRequest("IBM"));
+        assertTrue(database.tryReserveNewsRequest("IBM"));
 
-    DatabaseService recreated = new DatabaseService(dataSource);
+        DatabaseService recreated = new DatabaseService(dataSource);
 
-    assertFalse(recreated.tryReserveNewsRequest("AAPL"));
+        assertFalse(recreated.tryReserveNewsRequest("AAPL"));
 
-    assertEquals(1L, recreated.getNewsBudgetStatus().reservedRequests());
+        assertEquals(1L, recreated.getNewsBudgetStatus().reservedRequests());
 
-    assertEquals(0L, recreated.getImportBudgetStatus().reservedRequests());
+        assertEquals(0L, recreated.getImportBudgetStatus().reservedRequests());
 
-    assertTrue(database.tryStartDailySync("IBM"));
+        assertTrue(database.tryStartDailySync("IBM"));
 
-    assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
+        assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
 
-    jdbc.update(
-        """
+        jdbc.update(
+                """
                 UPDATE api_request_reservations
                 SET reserved_at = clock_timestamp() - INTERVAL '25 hours'
                 WHERE provider = 'marketaux'
                 """);
 
-    assertTrue(database.tryReserveNewsRequest("AAPL"));
+        assertTrue(database.tryReserveNewsRequest("AAPL"));
 
-    assertEquals(1L, database.getNewsBudgetStatus().reservedRequests());
+        assertEquals(1L, database.getNewsBudgetStatus().reservedRequests());
 
-    assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
-  }
+        assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
+    }
 
-  @Test
-  void concurrentNewsReservationsRespectTheirOwnLimit() throws Exception {
-    jdbc.update(
-        """
+    @Test
+    void concurrentNewsReservationsRespectTheirOwnLimit() throws Exception {
+        jdbc.update(
+                """
                 UPDATE api_budget_state
                 SET request_limit = 3
                 WHERE provider = 'marketaux'
                 """);
 
-    var tasks = new ArrayList<Callable<Boolean>>();
+        var tasks = new ArrayList<Callable<Boolean>>();
 
-    for (int index = 0; index < 12; index++) {
-      tasks.add(() -> database.tryReserveNewsRequest("IBM"));
-    }
-
-    int accepted = 0;
-
-    try (var executor = Executors.newFixedThreadPool(6)) {
-      var results = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
-
-      for (var result : results) {
-        if (result.get()) {
-          accepted++;
+        for (int index = 0; index < 12; index++) {
+            tasks.add(() -> database.tryReserveNewsRequest("IBM"));
         }
-      }
+
+        int accepted = 0;
+
+        try (var executor = Executors.newFixedThreadPool(6)) {
+            var results = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
+
+            for (var result : results) {
+                if (result.get()) {
+                    accepted++;
+                }
+            }
+        }
+
+        assertEquals(3, accepted);
+        assertEquals(3L, database.getNewsBudgetStatus().reservedRequests());
+        assertEquals(0L, database.getImportBudgetStatus().reservedRequests());
     }
 
-    assertEquals(3, accepted);
-    assertEquals(3L, database.getNewsBudgetStatus().reservedRequests());
-    assertEquals(0L, database.getImportBudgetStatus().reservedRequests());
-  }
+    @Test
+    void failedImportCanRetryAfterCooldownAcrossServiceRestart() throws Exception {
 
-  @Test
-  void failedImportCanRetryAfterCooldownAcrossServiceRestart() throws Exception {
+        assertTrue(database.tryStartDailySync("IBM"));
+        database.markDailySyncFailed("IBM");
 
-    assertTrue(database.tryStartDailySync("IBM"));
-    database.markDailySyncFailed("IBM");
+        // A recorded failure must not bypass the cooldown.
+        assertFalse(database.tryStartDailySync("IBM"));
 
-    // A recorded failure must not bypass the cooldown.
-    assertFalse(database.tryStartDailySync("IBM"));
+        ageLastAttempt("IBM");
 
-    ageLastAttempt("IBM");
+        DatabaseService recreated = new DatabaseService(dataSource);
 
-    DatabaseService recreated = new DatabaseService(dataSource);
+        assertTrue(recreated.tryStartDailySync("IBM"));
+        assertFalse(recreated.tryStartDailySync("IBM"));
 
-    assertTrue(recreated.tryStartDailySync("IBM"));
-    assertFalse(recreated.tryStartDailySync("IBM"));
+        assertEquals(2L, recreated.getImportBudgetStatus().reservedRequests());
 
-    assertEquals(2L, recreated.getImportBudgetStatus().reservedRequests());
-
-    // Reserving the retry consumes its permission.
-    assertEquals(
-        Boolean.FALSE,
-        jdbc.queryForObject(
-            """
+        // Reserving the retry consumes its permission.
+        assertEquals(
+                Boolean.FALSE,
+                jdbc.queryForObject(
+                        """
                         SELECT retry_allowed
                         FROM stock_sync_status
                         WHERE symbol = 'IBM'
                         """,
-            Boolean.class));
-  }
-
-  @Test
-  void repeatedFailuresStopAfterThreeAttemptsInRollingWindow() throws Exception {
-
-    for (int attempt = 0; attempt < 3; attempt++) {
-      assertTrue(database.tryStartDailySync("IBM"));
-
-      database.markDailySyncFailed("IBM");
-      ageLastAttempt("IBM");
+                        Boolean.class));
     }
 
-    assertFalse(database.tryStartDailySync("IBM"));
+    @Test
+    void repeatedFailuresStopAfterThreeAttemptsInRollingWindow() throws Exception {
 
-    assertEquals(3L, database.getImportBudgetStatus().reservedRequests());
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertTrue(database.tryStartDailySync("IBM"));
 
-    // A different stock can still use the remaining shared budget.
-    assertTrue(database.tryStartDailySync("AAPL"));
+            database.markDailySyncFailed("IBM");
+            ageLastAttempt("IBM");
+        }
 
-    jdbc.update(
-        """
+        assertFalse(database.tryStartDailySync("IBM"));
+
+        assertEquals(3L, database.getImportBudgetStatus().reservedRequests());
+
+        // A different stock can still use the remaining shared budget.
+        assertTrue(database.tryStartDailySync("AAPL"));
+
+        jdbc.update(
+                """
                 UPDATE api_request_reservations
                 SET reserved_at =
                     clock_timestamp() - INTERVAL '25 hours'
@@ -458,53 +468,53 @@ class DatabaseServiceIntegrationTest {
                 AND symbol = 'IBM'
                 """);
 
-    assertTrue(database.tryStartDailySync("IBM"));
-  }
+        assertTrue(database.tryStartDailySync("IBM"));
+    }
 
-  @Test
-  void retryStillRequiresSharedBudget() throws Exception {
-    jdbc.update(
-        """
+    @Test
+    void retryStillRequiresSharedBudget() throws Exception {
+        jdbc.update(
+                """
                 UPDATE api_budget_state
                 SET request_limit = 1
                 WHERE provider = 'alpha-vantage'
                 """);
 
-    assertTrue(database.tryStartDailySync("IBM"));
-    database.markDailySyncFailed("IBM");
-    ageLastAttempt("IBM");
+        assertTrue(database.tryStartDailySync("IBM"));
+        database.markDailySyncFailed("IBM");
+        ageLastAttempt("IBM");
 
-    assertFalse(database.tryStartDailySync("IBM"));
+        assertFalse(database.tryStartDailySync("IBM"));
 
-    assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
-  }
-
-  @Test
-  void concurrentCallsCannotConsumeSameRetryPermissionTwice() throws Exception {
-
-    assertTrue(database.tryStartDailySync("IBM"));
-    database.markDailySyncFailed("IBM");
-    ageLastAttempt("IBM");
-
-    var tasks = new ArrayList<Callable<Boolean>>();
-
-    for (int index = 0; index < 12; index++) {
-      tasks.add(() -> database.tryStartDailySync("IBM"));
+        assertEquals(1L, database.getImportBudgetStatus().reservedRequests());
     }
 
-    int accepted = 0;
+    @Test
+    void concurrentCallsCannotConsumeSameRetryPermissionTwice() throws Exception {
 
-    try (var executor = Executors.newFixedThreadPool(6)) {
-      var results = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
+        assertTrue(database.tryStartDailySync("IBM"));
+        database.markDailySyncFailed("IBM");
+        ageLastAttempt("IBM");
 
-      for (var result : results) {
-        if (result.get()) {
-          accepted++;
+        var tasks = new ArrayList<Callable<Boolean>>();
+
+        for (int index = 0; index < 12; index++) {
+            tasks.add(() -> database.tryStartDailySync("IBM"));
         }
-      }
-    }
 
-    assertEquals(1, accepted);
-    assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
-  }
+        int accepted = 0;
+
+        try (var executor = Executors.newFixedThreadPool(6)) {
+            var results = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
+
+            for (var result : results) {
+                if (result.get()) {
+                    accepted++;
+                }
+            }
+        }
+
+        assertEquals(1, accepted);
+        assertEquals(2L, database.getImportBudgetStatus().reservedRequests());
+    }
 }

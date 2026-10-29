@@ -1,18 +1,6 @@
 import React from "react";
+import type { StockChange, WinnersAndLosers } from "../../service/apiTypes";
 import "./styles.scss";
-
-export interface StockChange {
-  symbol: string;
-  name: string;
-  percentageRate: number;
-  date: string;
-  industry?: string;
-}
-
-export interface WinnersAndLosers {
-  winners: StockChange[];
-  losers: StockChange[];
-}
 
 interface MarketMoversProps {
   movers: WinnersAndLosers;

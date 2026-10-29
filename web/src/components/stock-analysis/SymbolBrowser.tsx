@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Stock } from "../../service/useStockCatalog";
+import type { Stock } from "../../service/apiTypes";
 
 const STORAGE_KEY = "profit-pilot:favorites:v1";
 

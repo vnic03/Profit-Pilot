@@ -1,35 +1,10 @@
 import React, { useEffect, useState } from "react";
-import {
-  getClosePrices,
-  getMacdSeries,
-  getHigh,
-  getOpen,
-  getLow,
-  getVolume,
-} from "../../service/financeService";
+import { getChartData } from "../../service/financeService";
 import StockChart from "../charts/stock-chart/StockChart";
 import ExportButton from "../ExportButton";
 import { useStockCatalog } from "../../service/useStockCatalog";
-import type { Stock } from "../../service/useStockCatalog";
 import SymbolBrowser from "./SymbolBrowser";
-
-export interface FinancialSymbolData {
-  closePrices: Record<string, number>;
-  high: Record<string, number>;
-  low: Record<string, number>;
-  open: Record<string, number>;
-  volume: Record<string, number>;
-  macd: Record<string, number>;
-  macdSignal: Record<string, number>;
-  macdHistogram: Record<string, number>;
-  sma: Record<string, number>;
-  ema: Record<string, number>;
-  rsi: Record<string, number>;
-}
-
-export interface StockAnalysisStructure {
-  [key: string]: FinancialSymbolData;
-}
+import type { FinancialSymbolData, Stock } from "../../service/apiTypes";
 
 interface StockAnalysisProps {
   refreshVersion: number;
@@ -65,47 +40,21 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ refreshVersion, onStockCh
   useEffect(() => {
     if (!currentSymbol) return;
 
-    // These requests may finish after a stock switch; ignore their late results.
-    let cancelled = false;
+    const controller = new AbortController();
 
     const loadData = async () => {
       try {
-        const [closePrices, high, low, open, volume, macdSeries] = await Promise.all([
-          getClosePrices(currentSymbol),
-          getHigh(currentSymbol),
-          getLow(currentSymbol),
-          getOpen(currentSymbol),
-          getVolume(currentSymbol),
-          getMacdSeries(currentSymbol),
-        ]);
+        const data: FinancialSymbolData = await getChartData(currentSymbol, controller.signal);
 
-        if (cancelled) {
-          return;
+        if (!controller.signal.aborted) {
+          setResult({ key: requestKey, data, error: null });
         }
-
-        setResult({
-          key: requestKey,
-          error: null,
-          data: {
-            closePrices,
-            high,
-            low,
-            open,
-            volume,
-            macd: macdSeries.macd,
-            macdSignal: macdSeries.signal,
-            macdHistogram: macdSeries.histogram,
-            sma: {},
-            ema: {},
-            rsi: {},
-          },
-        });
       } catch {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setResult({
             key: requestKey,
             data: null,
-            error: "Could not load stored prices. Check the backend and try again.",
+            error: "Could not load stored prices.",
           });
         }
       }
@@ -113,9 +62,7 @@ const StockAnalysis: React.FC<StockAnalysisProps> = ({ refreshVersion, onStockCh
 
     void loadData();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [currentSymbol, requestKey]);
 
   const current = result?.key === requestKey ? result : null;

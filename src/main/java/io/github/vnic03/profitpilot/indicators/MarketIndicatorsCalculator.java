@@ -5,179 +5,176 @@ import java.util.*;
 /** Uses ISO date keys (yyyy-MM-dd); warm-up periods are omitted from results. */
 public class MarketIndicatorsCalculator {
 
-  public static Map<String, Double> SMA(Map<String, Double> pricesAndDates, int period) {
+    public static Map<String, Double> SMA(Map<String, Double> pricesAndDates, int period) {
+        List<Map.Entry<String, Double>> entries = preparePrices(pricesAndDates, period);
+        Map<String, Double> result = new LinkedHashMap<>();
 
-    if (period < 1) {
-      throw new IllegalArgumentException("Period must be positive.");
+        double sum = 0.0;
+
+        for (int index = 0; index < entries.size(); index++) {
+            sum += entries.get(index).getValue();
+
+            if (index >= period) {
+                sum -= entries.get(index - period).getValue();
+            }
+
+            if (index >= period - 1) {
+                result.put(entries.get(index).getKey(), sum / period);
+            }
+        }
+
+        return result;
     }
 
-    Objects.requireNonNull(pricesAndDates, "Prices must not be null.");
+    public static Map<String, Double> RSI(Map<String, Double> pricesAndDates, int period) {
 
-    List<Map.Entry<String, Double>> entries =
-        new ArrayList<>(new TreeMap<>(pricesAndDates).entrySet());
+        List<Map.Entry<String, Double>> entries = preparePrices(pricesAndDates, period);
 
-    for (Map.Entry<String, Double> entry : entries) {
-      Double price = entry.getValue();
+        Map<String, Double> result = new LinkedHashMap<>();
 
-      if (price == null || !Double.isFinite(price)) {
-        throw new IllegalArgumentException("Price must be finite for date: " + entry.getKey());
-      }
+        // RSI needs one more price than its period to measure price changes.
+        if (entries.size() <= period) {
+            return result;
+        }
+
+        double averageGain = 0.0;
+        double averageLoss = 0.0;
+
+        for (int index = 1; index <= period; index++) {
+            double change = entries.get(index).getValue() - entries.get(index - 1).getValue();
+
+            averageGain += Math.max(change, 0.0);
+            averageLoss += Math.max(-change, 0.0);
+        }
+
+        averageGain /= period;
+        averageLoss /= period;
+
+        result.put(entries.get(period).getKey(), rsiValue(averageGain, averageLoss));
+
+        // Wilder smoothing carries the previous averages into each new session.
+        for (int index = period + 1; index < entries.size(); index++) {
+            double change = entries.get(index).getValue() - entries.get(index - 1).getValue();
+
+            averageGain = (averageGain * (period - 1) + Math.max(change, 0.0)) / period;
+
+            averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0.0)) / period;
+
+            result.put(entries.get(index).getKey(), rsiValue(averageGain, averageLoss));
+        }
+
+        return result;
     }
 
-    Map<String, Double> result = new LinkedHashMap<>();
-    double sum = 0.0;
+    public static Map<String, Double> EMA(Map<String, Double> pricesAndDates, int period) {
 
-    for (int index = 0; index < entries.size(); index++) {
-      sum += entries.get(index).getValue();
+        List<Map.Entry<String, Double>> entries = preparePrices(pricesAndDates, period);
 
-      if (index >= period) {
-        sum -= entries.get(index - period).getValue();
-      }
+        Map<String, Double> result = new LinkedHashMap<>();
 
-      if (index >= period - 1) {
-        result.put(entries.get(index).getKey(), sum / period);
-      }
+        if (entries.size() < period) {
+            return result;
+        }
+
+        double sum = 0.0;
+        for (int index = 0; index < period; index++) {
+            sum += entries.get(index).getValue();
+        }
+
+        // Seed with an SMA so the first price does not dominate the early EMA.
+        double ema = sum / period;
+        double multiplier = 2.0 / (period + 1.0);
+
+        result.put(entries.get(period - 1).getKey(), ema);
+
+        for (int index = period; index < entries.size(); index++) {
+            double price = entries.get(index).getValue();
+            ema += multiplier * (price - ema);
+
+            result.put(entries.get(index).getKey(), ema);
+        }
+
+        return result;
     }
 
-    return result;
-  }
+    public static MacdResult MACD(
+            Map<String, Double> pricesAndDates, int shortPeriod, int longPeriod, int signalPeriod) {
 
-  public static Map<String, Double> RSI(Map<String, Double> pricesAndDates, int period) {
+        if (shortPeriod < 1 || longPeriod <= shortPeriod || signalPeriod < 1) {
+            throw new IllegalArgumentException(
+                    "Periods must be positive and longPeriod must exceed shortPeriod.");
+        }
 
-    List<Map.Entry<String, Double>> entries = preparePrices(pricesAndDates, period);
+        Map<String, Double> shortEma = EMA(pricesAndDates, shortPeriod);
+        Map<String, Double> longEma = EMA(pricesAndDates, longPeriod);
 
-    Map<String, Double> result = new LinkedHashMap<>();
+        Map<String, Double> macd = new LinkedHashMap<>();
 
-    // RSI needs one more price than its period to measure price changes.
-    if (entries.size() <= period) {
-      return result;
+        longEma.forEach((date, value) -> macd.put(date, shortEma.get(date) - value));
+
+        // The signal needs its own warm-up after the MACD series begins.
+        Map<String, Double> signal = EMA(macd, signalPeriod);
+        Map<String, Double> histogram = new LinkedHashMap<>();
+
+        signal.forEach((date, value) -> histogram.put(date, macd.get(date) - value));
+
+        return new MacdResult(macd, signal, histogram);
     }
 
-    double averageGain = 0.0;
-    double averageLoss = 0.0;
+    private static List<Map.Entry<String, Double>> preparePrices(
+            Map<String, Double> pricesAndDates, int period) {
 
-    for (int index = 1; index <= period; index++) {
-      double change = entries.get(index).getValue() - entries.get(index - 1).getValue();
+        if (period < 1) {
+            throw new IllegalArgumentException("Period must be positive.");
+        }
 
-      averageGain += Math.max(change, 0.0);
-      averageLoss += Math.max(-change, 0.0);
+        Objects.requireNonNull(pricesAndDates, "Prices must not be null.");
+
+        List<Map.Entry<String, Double>> entries = new ArrayList<>(pricesAndDates.entrySet());
+
+        boolean sorted = true;
+        String previousDate = null;
+
+        for (Map.Entry<String, Double> entry : entries) {
+            String date = Objects.requireNonNull(entry.getKey(), "Date must not be null.");
+            Double price = entry.getValue();
+
+            if (price == null || !Double.isFinite(price)) {
+                throw new IllegalArgumentException("Price must be finite for date: " + date);
+            }
+
+            if (previousDate != null && previousDate.compareTo(date) > 0) {
+                sorted = false;
+            }
+
+            previousDate = date;
+        }
+
+        if (!sorted) {
+            entries.sort(Map.Entry.comparingByKey());
+        }
+
+        return entries;
     }
 
-    averageGain /= period;
-    averageLoss /= period;
+    private static double rsiValue(double averageGain, double averageLoss) {
+        // Treat a flat window as neutral rather than dividing zero by zero.
+        if (averageGain == 0.0 && averageLoss == 0.0) {
+            return 50.0;
+        }
 
-    result.put(entries.get(period).getKey(), rsiValue(averageGain, averageLoss));
+        if (averageLoss == 0.0) {
+            return 100.0;
+        }
 
-    // Wilder smoothing carries the previous averages into each new session.
-    for (int index = period + 1; index < entries.size(); index++) {
-      double change = entries.get(index).getValue() - entries.get(index - 1).getValue();
+        if (averageGain == 0.0) {
+            return 0.0;
+        }
 
-      averageGain = (averageGain * (period - 1) + Math.max(change, 0.0)) / period;
-
-      averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0.0)) / period;
-
-      result.put(entries.get(index).getKey(), rsiValue(averageGain, averageLoss));
+        double relativeStrength = averageGain / averageLoss;
+        return 100.0 - 100.0 / (1.0 + relativeStrength);
     }
 
-    return result;
-  }
-
-  public static Map<String, Double> EMA(Map<String, Double> pricesAndDates, int period) {
-
-    List<Map.Entry<String, Double>> entries = preparePrices(pricesAndDates, period);
-
-    Map<String, Double> result = new LinkedHashMap<>();
-
-    if (entries.size() < period) {
-      return result;
-    }
-
-    double sum = 0.0;
-    for (int index = 0; index < period; index++) {
-      sum += entries.get(index).getValue();
-    }
-
-    // Seed with an SMA so the first price does not dominate the early EMA.
-    double ema = sum / period;
-    double multiplier = 2.0 / (period + 1.0);
-
-    result.put(entries.get(period - 1).getKey(), ema);
-
-    for (int index = period; index < entries.size(); index++) {
-      double price = entries.get(index).getValue();
-      ema += multiplier * (price - ema);
-
-      result.put(entries.get(index).getKey(), ema);
-    }
-
-    return result;
-  }
-
-  public static MacdResult MACD(
-      Map<String, Double> pricesAndDates, int shortPeriod, int longPeriod, int signalPeriod) {
-
-    if (shortPeriod < 1 || longPeriod <= shortPeriod || signalPeriod < 1) {
-      throw new IllegalArgumentException(
-          "Periods must be positive and longPeriod must exceed shortPeriod.");
-    }
-
-    Map<String, Double> shortEma = EMA(pricesAndDates, shortPeriod);
-    Map<String, Double> longEma = EMA(pricesAndDates, longPeriod);
-
-    Map<String, Double> macd = new LinkedHashMap<>();
-
-    longEma.forEach((date, value) -> macd.put(date, shortEma.get(date) - value));
-
-    // The signal needs its own warm-up after the MACD series begins.
-    Map<String, Double> signal = EMA(macd, signalPeriod);
-    Map<String, Double> histogram = new LinkedHashMap<>();
-
-    signal.forEach((date, value) -> histogram.put(date, macd.get(date) - value));
-
-    return new MacdResult(macd, signal, histogram);
-  }
-
-  private static List<Map.Entry<String, Double>> preparePrices(
-      Map<String, Double> pricesAndDates, int period) {
-
-    if (period < 1) {
-      throw new IllegalArgumentException("Period must be positive.");
-    }
-
-    Objects.requireNonNull(pricesAndDates, "Prices must not be null.");
-
-    List<Map.Entry<String, Double>> entries =
-        new ArrayList<>(new TreeMap<>(pricesAndDates).entrySet());
-
-    for (Map.Entry<String, Double> entry : entries) {
-      Double price = entry.getValue();
-
-      if (price == null || !Double.isFinite(price)) {
-        throw new IllegalArgumentException("Price must be finite for date: " + entry.getKey());
-      }
-    }
-
-    return entries;
-  }
-
-  private static double rsiValue(double averageGain, double averageLoss) {
-    // Treat a flat window as neutral rather than dividing zero by zero.
-    if (averageGain == 0.0 && averageLoss == 0.0) {
-      return 50.0;
-    }
-
-    if (averageLoss == 0.0) {
-      return 100.0;
-    }
-
-    if (averageGain == 0.0) {
-      return 0.0;
-    }
-
-    double relativeStrength = averageGain / averageLoss;
-    return 100.0 - 100.0 / (1.0 + relativeStrength);
-  }
-
-  public record MacdResult(
-      Map<String, Double> macd, Map<String, Double> signal, Map<String, Double> histogram) {}
+    public record MacdResult(
+            Map<String, Double> macd, Map<String, Double> signal, Map<String, Double> histogram) {}
 }

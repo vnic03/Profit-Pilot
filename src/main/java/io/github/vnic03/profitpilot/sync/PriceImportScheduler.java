@@ -10,22 +10,22 @@ import org.springframework.stereotype.Component;
 @EnableScheduling
 public class PriceImportScheduler {
 
-  private static final Logger logger = LoggerFactory.getLogger(PriceImportScheduler.class);
+    private static final Logger logger = LoggerFactory.getLogger(PriceImportScheduler.class);
 
-  private final PriceImportService imports;
+    private final PriceImportService imports;
 
-  public PriceImportScheduler(PriceImportService imports) {
-    this.imports = imports;
-  }
-
-  @Scheduled(
-      cron = "${profitpilot.sync.cron:-}",
-      zone = "${profitpilot.sync.zone:America/New_York}")
-  public void refreshPrices() {
-    try {
-      logger.info("Scheduled import result: {}", imports.runConfiguredImport());
-    } catch (RuntimeException e) {
-      logger.error("Scheduled import could not run.", e);
+    public PriceImportScheduler(PriceImportService imports) {
+        this.imports = imports;
     }
-  }
+
+    @Scheduled(
+            cron = "${profitpilot.sync.cron:-}",
+            zone = "${profitpilot.sync.zone:America/New_York}")
+    public void refreshPrices() {
+        try {
+            logger.info("Scheduled import result: {}", imports.runConfiguredImport());
+        } catch (RuntimeException e) {
+            logger.error("Scheduled import could not run.", e);
+        }
+    }
 }

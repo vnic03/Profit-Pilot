@@ -1,24 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { getNews } from "../../service/newsService";
-import type { Stock } from "../../service/useStockCatalog";
 import { useViewportVisibility } from "../../service/useViewportVisibility";
 import ImportBudget from "../ImportBudget";
-
-interface NewsArticle {
-  title: string;
-  publicationDate: string;
-  description: string;
-  url: string;
-  imageUrl: string | null;
-  source: string;
-}
-
-interface NewsResponse {
-  status: "disabled" | "ready";
-  articles: NewsArticle[];
-  fetchedAt: string | null;
-}
+import { NewsArticle, NewsResponse, Stock } from "../../service/apiTypes";
 
 type NewsState =
   | { status: "idle" }
@@ -88,7 +73,7 @@ const News: React.FC<{ stock: Stock | null }> = ({ stock }) => {
         const budgetExhausted =
           axios.isAxiosError(error) &&
           error.response?.status === 429 &&
-          error.response?.data?.status === "budget_exhausted";
+          error.response?.data?.code === "budget_exhausted";
 
         setState({
           status: budgetExhausted ? "limited" : "error",
