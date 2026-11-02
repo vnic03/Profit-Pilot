@@ -1,11 +1,11 @@
-export type View = "analysis" | "movers" | "data" | "news";
+export type View = "analysis" | "movers" | "news";
 
 interface Props {
   view: View;
   onNavigate: (view: View) => void;
 }
 
-const views: View[] = ["analysis", "movers", "data", "news"];
+const views: View[] = ["analysis", "movers", "news"];
 
 export default function Navbar({ view, onNavigate }: Props) {
   return (

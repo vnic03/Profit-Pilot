@@ -3,10 +3,11 @@ import "./App.css";
 import Navbar, { type View } from "./components/navbar/Navbar";
 import StockAnalysis from "./components/stock-analysis/StockAnalysis";
 import MarketMovers from "./components/market-movers/MarketMovers";
-import DataStatus from "./components/DataStatus";
 import News from "./components/news/News";
 import { getWinnersAndLosers } from "./service/financeService";
 import type { Stock, WinnersAndLosers } from "./service/apiTypes";
+
+const MAX_MOVERS_AMOUNT = 100;
 
 function Movers({ refreshVersion }: { refreshVersion: number }) {
   const [amount, setAmount] = useState(5);
@@ -22,7 +23,7 @@ function Movers({ refreshVersion }: { refreshVersion: number }) {
   useEffect(() => {
     let cancelled = false;
 
-    getWinnersAndLosers(amount + 1).then(
+    getWinnersAndLosers(Math.min(amount + 1, MAX_MOVERS_AMOUNT)).then(
       (data: WinnersAndLosers) => {
         if (!cancelled) setResult({ key, data });
       },
@@ -65,8 +66,10 @@ function Movers({ refreshVersion }: { refreshVersion: number }) {
               winners: current.data.winners.slice(0, amount),
               losers: current.data.losers.slice(0, amount),
             }}
-            hasMore={current.data.winners.length > amount || current.data.losers.length > amount}
-            handleLoadMore={() => setAmount((value) => value + 5)}
+            hasMore={
+              amount < MAX_MOVERS_AMOUNT &&
+              (current.data.winners.length > amount || current.data.losers.length > amount)}
+            handleLoadMore={() => setAmount((value) => Math.min(value + 5, MAX_MOVERS_AMOUNT))}
           />
         ))}
     </section>
@@ -95,12 +98,6 @@ export default function App() {
         {view === "movers" && (
           <div className="utility-view">
             <Movers refreshVersion={refreshVersion} />
-          </div>
-        )}
-
-        {view === "data" && (
-          <div className="utility-view">
-            <DataStatus refreshVersion={refreshVersion} />
           </div>
         )}
 

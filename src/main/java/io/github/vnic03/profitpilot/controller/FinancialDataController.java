@@ -2,13 +2,11 @@ package io.github.vnic03.profitpilot.controller;
 
 import io.github.vnic03.profitpilot.catalog.StockCatalog;
 import io.github.vnic03.profitpilot.database.DatabaseService;
-import io.github.vnic03.profitpilot.model.StockChange;
 import io.github.vnic03.profitpilot.sync.PriceFreshness;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,9 +23,19 @@ public class FinancialDataController {
     }
 
     @GetMapping("/winnersAndLosers/{amount}")
-    public ResponseEntity<Map<String, List<StockChange>>> getWinnersAndLosers(
-            @PathVariable int amount) {
-        return ResponseEntity.ok(dbService.getWinnersAndLosers(amount));
+    public ResponseEntity<?> getWinnersAndLosers(@PathVariable String amount) {
+        int a;
+        try {
+            a = Integer.parseInt(amount);
+        } catch (NumberFormatException e) {
+            return invalidAmount();
+        }
+
+        if (a < 1 || a > DatabaseService.MAX_RANKING_AMOUNT) {
+            return invalidAmount();
+        }
+
+        return ResponseEntity.ok(dbService.getWinnersAndLosers(a));
     }
 
     @GetMapping("/import-budget")
@@ -72,5 +80,14 @@ public class FinancialDataController {
                         .toList();
 
         return ResponseEntity.ok(rows);
+    }
+
+    private ResponseEntity<ApiSupport.ErrorResponse> invalidAmount() {
+        return ApiSupport.error(
+                400,
+                "invalid_amount",
+                "Amount must be a whole number between 1 and "
+                        + DatabaseService.MAX_RANKING_AMOUNT
+                        + ".");
     }
 }

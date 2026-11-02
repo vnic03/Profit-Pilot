@@ -58,4 +58,13 @@ class ServerSecurityConfigTest {
             mvc.perform(request(method, "/api/operations/build")).andExpect(status().isForbidden());
         }
     }
+
+    @Test
+    void unknownApiRoutesAreForbidden() throws Exception {
+        mvc.perform(get("/api/test-unbekannt"))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(head("/api/test-unbekannt"))
+                .andExpect(status().isForbidden());
+    }
 }

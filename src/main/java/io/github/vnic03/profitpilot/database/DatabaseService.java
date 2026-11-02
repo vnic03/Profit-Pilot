@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class DatabaseService {
 
+    public static final int MAX_RANKING_AMOUNT = 100;
+
     private final DataSource dataSource;
 
     public DatabaseService(DataSource dataSource) {
@@ -333,7 +335,7 @@ public class DatabaseService {
     }
 
     public Map<String, List<StockChange>> getWinnersAndLosers(int amount) {
-        if (amount < 1) {
+        if (amount < 1 || amount > MAX_RANKING_AMOUNT) {
             throw new IllegalArgumentException();
         }
 

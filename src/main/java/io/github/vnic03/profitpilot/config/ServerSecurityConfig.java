@@ -35,6 +35,32 @@ public class ServerSecurityConfig {
                         auth ->
                                 auth.dispatcherTypeMatchers(DispatcherType.ERROR)
                                         .permitAll()
+                                        // Authentication for these internal routes is enforced by Cloudflare Access.
+                                        // The origin must not be directly accessible.
+                                        .requestMatchers(
+                                            HttpMethod.GET,
+                                            "/api/operations/build",
+                                            "/api/operations/imports",
+                                            "/api/finance/import-budget",
+                                            "/api/news/budget",
+                                            "/api/finance/data-status")
+                                        .permitAll()
+                                        // Public Api Routes
+                                        .requestMatchers(
+                                                HttpMethod.GET,
+                                                "/api/finance/stocks",
+                                                "/api/finance/winnersAndLosers/*",
+                                                "/api/finance/chart/*",
+                                                "/api/finance/dynamicSMA/*/*",
+                                                "/api/finance/dynamicEMA/*/*",
+                                                "/api/finance/dynamicRSI/*/*",
+                                                "/api/finance/export/*",
+                                                "/api/news")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.HEAD, "/api/operations/build")
+                                        .permitAll()
+                                        .requestMatchers("/api", "/api/**")
+                                        .denyAll()
                                         .requestMatchers(HttpMethod.GET, "/**")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.HEAD, "/**")

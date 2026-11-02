@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { getNews } from "../../service/newsService";
 import { useViewportVisibility } from "../../service/useViewportVisibility";
-import ImportBudget from "../ImportBudget";
 import { NewsArticle, NewsResponse, Stock } from "../../service/apiTypes";
 
 type NewsState =
@@ -33,7 +32,6 @@ function formatDate(value: string | null): string {
 
 const News: React.FC<{ stock: Stock | null }> = ({ stock }) => {
   const [state, setState] = useState<NewsState>({ status: "idle" });
-  const [budgetVersion, setBudgetVersion] = useState(0);
   const activeRequest = useRef<AbortController | null>(null);
   const { elementRef, visible } = useViewportVisibility();
   const symbol = stock?.symbol ?? "";
@@ -82,9 +80,6 @@ const News: React.FC<{ stock: Stock | null }> = ({ stock }) => {
     } finally {
       if (activeRequest.current === controller) {
         activeRequest.current = null;
-      }
-      if (!controller.signal.aborted) {
-        setBudgetVersion((value) => value + 1);
       }
     }
   }, [symbol]);
@@ -197,8 +192,6 @@ const News: React.FC<{ stock: Stock | null }> = ({ stock }) => {
           </p>
         </>
       )}
-
-      <ImportBudget provider="news" refreshVersion={budgetVersion} />
     </section>
   );
 };

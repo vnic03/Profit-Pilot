@@ -14,12 +14,6 @@ vi.mock("./components/stock-analysis/StockAnalysis", () => ({
   ),
 }));
 
-vi.mock("./components/DataStatus", () => ({
-  default: ({ refreshVersion }: { refreshVersion: number }) => (
-    <div data-testid="status-refresh">{refreshVersion}</div>
-  ),
-}));
-
 vi.mock("./components/news/News", () => ({
   default: () => <div>News placeholder</div>,
 }));
@@ -50,10 +44,11 @@ test("navigation preserves analysis and reload reaches each view", async () => {
   expect(loadMovers).toHaveBeenLastCalledWith(6);
   expect(screen.getByTestId("price-refresh")).toHaveTextContent("1");
 
-  fireEvent.click(screen.getByRole("button", { name: "data" }));
+  expect(screen.queryByRole("button", { name: "data" })).not.toBeInTheDocument();
 
-  expect(screen.getByTestId("status-refresh")).toHaveTextContent("1");
+  fireEvent.click(screen.getByRole("button", { name: "news" }));
 
+  expect(screen.getByText("News placeholder")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "analysis" }));
 
   expect(screen.getByTestId("price-refresh")).toBeVisible();

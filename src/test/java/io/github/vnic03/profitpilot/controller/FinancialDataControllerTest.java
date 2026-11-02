@@ -59,4 +59,29 @@ class FinancialDataControllerTest {
                 .andExpect(jsonPath("$.winners[0].industry").value(""))
                 .andExpect(jsonPath("$.losers").isEmpty());
     }
+
+    @Test
+    void invalidRankingAmountsAreRejectedBeforeDatabaseAccess() throws Exception {
+        for (String amount :
+                List.of("0", "-1", "101", "2147483648", "abc", "1.5")) {
+            mvc.perform(get("/api/finance/winnersAndLosers/" + amount))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("invalid_amount"))
+                    .andExpect(header().string("Cache-Control", "no-store"));
+        }
+
+        verifyNoInteractions(database);
+    }
+
+    @Test
+    void maximumRankingAmountIsAccepted() throws Exception {
+        when(database.getWinnersAndLosers(100))
+                .thenReturn(Map.of("winners", List.of(), "losers", List.of()));
+
+        mvc.perform(get("/api/finance/winnersAndLosers/100"))
+                .andExpect(status().isOk());
+
+        verify(database).getWinnersAndLosers(100);
+        verifyNoMoreInteractions(database);
+    }
 }
